@@ -22,10 +22,6 @@
           "Dissolve": "Dissolve"
         }
       },
-      "Opacity": {
-        "Label": "Effect Opacity",
-        "Hint": "How visible the effect is on the tile. 0 is invisible, 1 is fully visible."
-      },
       "Intensity": {
         "Label": "Effect Intensity",
         "Hint": "The strength of the shader effect."

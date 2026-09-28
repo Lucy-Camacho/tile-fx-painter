@@ -22,7 +22,7 @@ Hooks.on("renderTileConfig", async (app, element) => {
   if (!group) return;
 
   const idPrefix = `${app.id}-${MODULE_ID}`;
-  // The shader, opacity, and intensity controls are only visual at this time. They have no "name", so the form does not save them.
+  // The shader and intensity controls are only visual at this time. They have no "name", so the form does not save them.
   const html = await foundry.applications.handlebars.renderTemplate(TEMPLATE, {
     moduleId: MODULE_ID,
     tabId: TAB_ID,
@@ -32,8 +32,6 @@ Hooks.on("renderTileConfig", async (app, element) => {
     shaderId: `${idPrefix}-shader`,
     shaderChoices: SHADER_CHOICES,
     shader: "none",
-    opacityId: `${idPrefix}-opacity`,
-    opacity: 1,
     intensityId: `${idPrefix}-intensity`,
     intensity: 1
   });
