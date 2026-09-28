@@ -29,6 +29,15 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     }
   };
 
+  /** The tile fields that change the area under the tile. A change to one of them makes a new capture necessary. */
+  static CAPTURE_FIELDS = ["x", "y", "width", "height", "rotation"];
+
+  /**
+   * A counter for the captures. A capture can take a long time. Only the result of the last capture goes into the view.
+   * @type {number}
+   */
+  #captureId = 0;
+
   static PARTS = {
     main: {
       template: `modules/${MODULE_ID}/templates/effect-editor.hbs`
@@ -69,7 +78,16 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
   /** @override */
   async _onRender(context, options) {
     await super._onRender(context, options);
-    const view = this.element.querySelector(".tile-fx-painter-editor-view");
+    await this.recapture();
+  }
+
+  /**
+   * Capture the background under the tile again and show it in the view area.
+   * The capture uses the saved tile data.
+   * @returns {Promise<void>}
+   */
+  async recapture() {
+    const captureId = ++this.#captureId;
 
     let capture = null;
     let message = "TILE_FX_PAINTER.Editor.NoBackground";
@@ -79,6 +97,10 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
       console.error(err);
       message = "TILE_FX_PAINTER.Editor.CaptureFailed";
     }
+
+    // A newer capture started, or the window closed, while this capture loaded.
+    const view = this.element?.querySelector(".tile-fx-painter-editor-view");
+    if ((captureId !== this.#captureId) || !view) return;
 
     if (capture) {
       capture.classList.add("tile-fx-painter-capture");
@@ -91,6 +113,12 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     }
   }
 }
+
+// The capture uses the saved tile data. Capture again when the area under the tile changes.
+Hooks.on("updateTile", (tile, changes) => {
+  if (!EffectEditor.CAPTURE_FIELDS.some((field) => field in changes)) return;
+  foundry.applications.instances.get(EffectEditor.getId(tile))?.recapture();
+});
 
 // An editor for a deleted tile cannot save its mask. Close it.
 Hooks.on("deleteTile", (tile) => {

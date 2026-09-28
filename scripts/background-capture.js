@@ -6,7 +6,7 @@ const MAX_SIZE = 4096;
 /**
  * Capture the part of the scene background image that a tile covers.
  * The function uses only the document data, not the canvas. Thus it also works for a scene that is not on the canvas.
- * The capture does not follow the tile rotation at this time.
+ * The capture follows the tile rotation. The top edge of the capture is the top edge of the tile.
  * @param {TileDocument} tile
  * @returns {Promise<HTMLCanvasElement|null>}  The capture, or null if the scene has no background image that can be captured.
  * @throws {Error}  If the image does not load.
@@ -43,9 +43,14 @@ export async function captureBackground(tile) {
   canvas.width = Math.max(1, Math.round(tile.width * scale));
   canvas.height = Math.max(1, Math.round(tile.height * scale));
 
-  // Draw in tile coordinates. Areas of the tile outside the scene rectangle stay transparent.
+  // Change output pixels to scene coordinates. Foundry turns a tile around its center.
+  // The capture turns the scene in the opposite direction, thus the image edges align with the tile edges.
+  // Areas of the tile outside the scene rectangle stay transparent.
   const ctx = canvas.getContext("2d");
+  ctx.translate(canvas.width / 2, canvas.height / 2);
   ctx.scale(canvas.width / tile.width, canvas.height / tile.height);
-  ctx.drawImage(img, sceneX - tile.x, sceneY - tile.y, sceneWidth, sceneHeight);
+  ctx.rotate(-Math.toRadians(tile.rotation));
+  ctx.translate(-(tile.x + tile.width / 2), -(tile.y + tile.height / 2));
+  ctx.drawImage(img, sceneX, sceneY, sceneWidth, sceneHeight);
   return canvas;
 }
