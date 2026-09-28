@@ -1,4 +1,5 @@
 import { MODULE_ID } from "./main.js";
+import { captureBackground } from "./background-capture.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -64,9 +65,40 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     // Tiles do not have a name, thus the title shows the tile id.
     return game.i18n.format("TILE_FX_PAINTER.Editor.Title", { id: this.tile.id });
   }
+
+  /** @override */
+  async _onRender(context, options) {
+    await super._onRender(context, options);
+    const view = this.element.querySelector(".tile-fx-painter-editor-view");
+
+    let capture = null;
+    let message = "TILE_FX_PAINTER.Editor.NoBackground";
+    try {
+      capture = await captureBackground(this.tile);
+    } catch (err) {
+      console.error(err);
+      message = "TILE_FX_PAINTER.Editor.CaptureFailed";
+    }
+
+    if (capture) {
+      capture.classList.add("tile-fx-painter-capture");
+      view.replaceChildren(capture);
+    } else {
+      const hint = document.createElement("p");
+      hint.classList.add("hint");
+      hint.textContent = game.i18n.localize(message);
+      view.replaceChildren(hint);
+    }
+  }
 }
 
 // An editor for a deleted tile cannot save its mask. Close it.
 Hooks.on("deleteTile", (tile) => {
   foundry.applications.instances.get(EffectEditor.getId(tile))?.close();
+});
+
+// The editor is a part of the tile sheet for the user. Close it with the sheet.
+// "Update Tile" also closes the sheet, thus it also closes the editor.
+Hooks.on("closeTileConfig", (app) => {
+  foundry.applications.instances.get(EffectEditor.getId(app.document))?.close();
 });
