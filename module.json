@@ -12,7 +12,7 @@
     "minimum": "13",
     "verified": "13"
   },
-  "esmodules": ["scripts/main.js"],
+  "esmodules": ["scripts/main.js", "scripts/tile-config-tab.js"],
   "styles": ["styles/tile-fx-painter.css"],
   "languages": [
     {

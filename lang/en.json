@@ -1,5 +1,14 @@
 {
   "TILE_FX_PAINTER": {
-    "Title": "Tile FX Painter"
+    "Title": "Tile FX Painter",
+    "Tab": {
+      "Label": "FX Painter"
+    },
+    "Config": {
+      "Enabled": {
+        "Label": "Enable Effects",
+        "Hint": "Apply the Tile FX Painter shader effects to this tile."
+      }
+    }
   }
 }
