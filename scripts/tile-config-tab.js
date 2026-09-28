@@ -22,18 +22,18 @@ Hooks.on("renderTileConfig", async (app, element) => {
   if (!group) return;
 
   const idPrefix = `${app.id}-${MODULE_ID}`;
-  // The shader and intensity controls are only visual at this time. They have no "name", so the form does not save them.
+  const flags = app.document.flags[MODULE_ID] ?? {};
   const html = await foundry.applications.handlebars.renderTemplate(TEMPLATE, {
     moduleId: MODULE_ID,
     tabId: TAB_ID,
     group,
     inputId: `${idPrefix}-enabled`,
-    enabled: app.document.getFlag(MODULE_ID, "enabled") ?? false,
+    enabled: flags.enabled ?? false,
     shaderId: `${idPrefix}-shader`,
     shaderChoices: SHADER_CHOICES,
-    shader: "none",
+    shader: flags.shader ?? "none",
     intensityId: `${idPrefix}-intensity`,
-    intensity: 1
+    intensity: flags.intensity ?? 1
   });
 
   // A re-render keeps the elements that are not application parts. Remove the old tab after the await, so that two quick renders do not add two tabs.

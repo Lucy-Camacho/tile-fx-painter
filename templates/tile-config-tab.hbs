@@ -13,7 +13,7 @@
     <div class="form-group">
       <label for="{{shaderId}}">{{localize "TILE_FX_PAINTER.Config.Shader.Label"}}</label>
       <div class="form-fields">
-        <select id="{{shaderId}}">
+        <select id="{{shaderId}}" name="flags.{{moduleId}}.shader">
           {{selectOptions shaderChoices selected=shader localize=true}}
         </select>
       </div>
@@ -23,7 +23,7 @@
     <div class="form-group">
       <label for="{{intensityId}}">{{localize "TILE_FX_PAINTER.Config.Intensity.Label"}}</label>
       <div class="form-fields">
-        <range-picker id="{{intensityId}}" value="{{intensity}}" min="0" max="2" step="0.05"></range-picker>
+        <range-picker id="{{intensityId}}" name="flags.{{moduleId}}.intensity" value="{{intensity}}" min="0" max="2" step="0.05"></range-picker>
       </div>
       <p class="hint">{{localize "TILE_FX_PAINTER.Config.Intensity.Hint"}}</p>
     </div>
