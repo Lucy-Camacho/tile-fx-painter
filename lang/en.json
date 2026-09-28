@@ -8,6 +8,30 @@
       "Enabled": {
         "Label": "Enable Effects",
         "Hint": "Apply the Tile FX Painter shader effects to this tile."
+      },
+      "Effect": {
+        "Legend": "Effect"
+      },
+      "Shader": {
+        "Label": "Shader",
+        "Hint": "The shader effect to apply to this tile.",
+        "Choices": {
+          "None": "None",
+          "Glow": "Glow",
+          "Ripple": "Ripple",
+          "Dissolve": "Dissolve"
+        }
+      },
+      "Opacity": {
+        "Label": "Effect Opacity",
+        "Hint": "How visible the effect is on the tile. 0 is invisible, 1 is fully visible."
+      },
+      "Intensity": {
+        "Label": "Effect Intensity",
+        "Hint": "The strength of the shader effect."
+      },
+      "OpenEditor": {
+        "Label": "Open Effect Editor"
       }
     }
   }

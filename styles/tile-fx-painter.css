@@ -1,1 +1,6 @@
 /* Tile FX Painter styles */
+
+.tile-fx-painter .tile-fx-painter-open-editor {
+  width: 100%;
+  margin-top: 0.5rem;
+}

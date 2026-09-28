@@ -3,6 +3,14 @@ import { MODULE_ID } from "./main.js";
 const TAB_ID = MODULE_ID;
 const TEMPLATE = `modules/${MODULE_ID}/templates/tile-config-tab.hbs`;
 
+// Placeholder entries for the shader dropdown. No shader code exists yet.
+const SHADER_CHOICES = {
+  none: "TILE_FX_PAINTER.Config.Shader.Choices.None",
+  glow: "TILE_FX_PAINTER.Config.Shader.Choices.Glow",
+  ripple: "TILE_FX_PAINTER.Config.Shader.Choices.Ripple",
+  dissolve: "TILE_FX_PAINTER.Config.Shader.Choices.Dissolve"
+};
+
 /**
  * Add the Tile FX Painter tab to the TileConfig sheet.
  * TileConfig does not have this tab in its static TABS, so the hook adds the navigation item and the tab content after each render.
@@ -13,12 +21,21 @@ Hooks.on("renderTileConfig", async (app, element) => {
   const group = nav?.querySelector("[data-group]")?.dataset.group;
   if (!group) return;
 
+  const idPrefix = `${app.id}-${MODULE_ID}`;
+  // The shader, opacity, and intensity controls are only visual at this time. They have no "name", so the form does not save them.
   const html = await foundry.applications.handlebars.renderTemplate(TEMPLATE, {
     moduleId: MODULE_ID,
     tabId: TAB_ID,
     group,
-    inputId: `${app.id}-${MODULE_ID}-enabled`,
-    enabled: app.document.getFlag(MODULE_ID, "enabled") ?? false
+    inputId: `${idPrefix}-enabled`,
+    enabled: app.document.getFlag(MODULE_ID, "enabled") ?? false,
+    shaderId: `${idPrefix}-shader`,
+    shaderChoices: SHADER_CHOICES,
+    shader: "none",
+    opacityId: `${idPrefix}-opacity`,
+    opacity: 1,
+    intensityId: `${idPrefix}-intensity`,
+    intensity: 1
   });
 
   // A re-render keeps the elements that are not application parts. Remove the old tab after the await, so that two quick renders do not add two tabs.
