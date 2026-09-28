@@ -4,3 +4,20 @@
   width: 100%;
   margin-top: 0.5rem;
 }
+
+.tile-fx-painter.effect-editor .window-content {
+  padding: 0;
+}
+
+.tile-fx-painter-editor,
+.tile-fx-painter-editor-view {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.tile-fx-painter-editor-view {
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}

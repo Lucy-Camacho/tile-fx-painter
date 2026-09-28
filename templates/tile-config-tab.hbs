@@ -28,9 +28,11 @@
       <p class="hint">{{localize "TILE_FX_PAINTER.Config.Intensity.Hint"}}</p>
     </div>
 
+    {{#if canOpenEditor}}
     <button type="button" class="tile-fx-painter-open-editor">
       <i class="fa-solid fa-pen-ruler" inert></i>
       <span>{{localize "TILE_FX_PAINTER.Config.OpenEditor.Label"}}</span>
     </button>
+    {{/if}}
   </fieldset>
 </div>

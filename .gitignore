@@ -1,0 +1,4 @@
+# Log Files
+logs/
+# Masks made during tests
+masks/

@@ -1,4 +1,5 @@
 import { MODULE_ID } from "./main.js";
+import { EffectEditor } from "./effect-editor.js";
 
 const TAB_ID = MODULE_ID;
 const TEMPLATE = `modules/${MODULE_ID}/templates/tile-config-tab.hbs`;
@@ -33,7 +34,9 @@ Hooks.on("renderTileConfig", async (app, element) => {
     shaderChoices: SHADER_CHOICES,
     shader: flags.shader ?? "none",
     intensityId: `${idPrefix}-intensity`,
-    intensity: flags.intensity ?? 1
+    intensity: flags.intensity ?? 1,
+    // The editor saves the mask as an uploaded file. Users who cannot upload cannot use it.
+    canOpenEditor: game.user.can("FILES_UPLOAD")
   });
 
   // A re-render keeps the elements that are not application parts. Remove the old tab after the await, so that two quick renders do not add two tabs.
@@ -55,6 +58,9 @@ Hooks.on("renderTileConfig", async (app, element) => {
   template.innerHTML = html.trim();
   const tab = template.content.firstElementChild;
   tab.classList.toggle("active", active);
+
+  // Each render makes a new tab element, thus the listener must be added again.
+  tab.querySelector(".tile-fx-painter-open-editor")?.addEventListener("click", () => EffectEditor.open(app.document));
 
   const tabs = element.querySelectorAll(`.tab[data-group="${group}"]`);
   tabs[tabs.length - 1].after(tab);
