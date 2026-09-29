@@ -32,12 +32,19 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
       height: 560
     },
     actions: {
+      selectTool: EffectEditor.#onSelectTool,
       undoMask: EffectEditor.#onUndoMask,
       redoMask: EffectEditor.#onRedoMask,
       invertMask: EffectEditor.#onInvertMask,
       clearMask: EffectEditor.#onClearMask
     }
   };
+
+  /** The tools for the pointer, in the order of the tool buttons. */
+  static TOOLS = [
+    { id: "brush", icon: "fa-solid fa-paintbrush", label: "TILE_FX_PAINTER.Editor.Brush" },
+    { id: "eraser", icon: "fa-solid fa-eraser", label: "TILE_FX_PAINTER.Editor.Eraser" }
+  ];
 
   /** The tile fields that change the area under the tile. A change to one of them makes a new capture necessary. */
   static CAPTURE_FIELDS = ["x", "y", "width", "height", "rotation"];
@@ -89,6 +96,9 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
   async _prepareContext(options) {
     const context = await super._prepareContext(options);
     return Object.assign(context, {
+      tools: EffectEditor.TOOLS.map((tool) => ({ ...tool, active: tool.id === this.mask.tool })),
+      brushSize: this.mask.brushSize,
+      brushHardness: Math.round(this.mask.brushHardness * 100),
       opacity: Math.round(this.mask.opacity * 100),
       showMask: this.mask.showMask,
       canUndo: this.mask.canUndo,
@@ -107,14 +117,22 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
   /** @override */
   async _onRender(context, options) {
     await super._onRender(context, options);
-    const toolbar = this.element.querySelector(".tile-fx-painter-editor-toolbar");
-    toolbar.querySelector("[name=opacity]").addEventListener("input", (event) => {
+    const el = this.element;
+    el.querySelector("[name=brushSize]").addEventListener("input", (event) => {
+      this.mask.brushSize = event.currentTarget.valueAsNumber;
+      event.currentTarget.nextElementSibling.textContent = this.mask.brushSize;
+    });
+    el.querySelector("[name=brushHardness]").addEventListener("input", (event) => {
+      this.mask.brushHardness = event.currentTarget.valueAsNumber / 100;
+      event.currentTarget.nextElementSibling.textContent = `${event.currentTarget.value}%`;
+    });
+    el.querySelector("[name=opacity]").addEventListener("input", (event) => {
       this.mask.opacity = event.currentTarget.valueAsNumber / 100;
       this.mask.requestDraw();
     });
     // "change" occurs at the end of a drag. Thus one drag gives one undo step.
-    toolbar.querySelector("[name=opacity]").addEventListener("change", () => this.mask.commitOpacity());
-    toolbar.querySelector("[name=showMask]").addEventListener("change", (event) => {
+    el.querySelector("[name=opacity]").addEventListener("change", () => this.mask.commitOpacity());
+    el.querySelector("[name=showMask]").addEventListener("change", (event) => {
       this.mask.setShowMask(event.currentTarget.checked);
     });
 
@@ -189,6 +207,20 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     // Foundry listens for keys on the window. Without this, Ctrl+Z also reverses the last change on the canvas.
     event.preventDefault();
     event.stopPropagation();
+  }
+
+  /**
+   * @this {EffectEditor}
+   * @param {PointerEvent} event
+   * @param {HTMLButtonElement} target
+   */
+  static #onSelectTool(event, target) {
+    this.mask.tool = target.dataset.tool;
+    for (const button of this.element.querySelectorAll("[data-action=selectTool]")) {
+      const active = button === target;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", String(active));
+    }
   }
 
   /** @this {EffectEditor} */

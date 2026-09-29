@@ -25,7 +25,8 @@
   flex-direction: column;
 }
 
-.tile-fx-painter-editor-toolbar {
+.tile-fx-painter-editor-toolbar,
+.tile-fx-painter-editor-tools {
   display: flex;
   flex: none;
   flex-wrap: wrap;
@@ -35,20 +36,35 @@
   border-bottom: 1px solid var(--color-border);
 }
 
-.tile-fx-painter-editor-toolbar label {
+.tile-fx-painter-editor-toolbar label,
+.tile-fx-painter-editor-tools label {
   display: flex;
   align-items: center;
   gap: 0.25rem;
 }
 
-.tile-fx-painter-editor-toolbar input[type="range"] {
+.tile-fx-painter-editor-toolbar input[type="range"],
+.tile-fx-painter-editor-tools input[type="range"] {
   width: 6rem;
 }
 
-.tile-fx-painter-editor-toolbar button {
+.tile-fx-painter-editor-toolbar button,
+.tile-fx-painter-editor-tools button {
   flex: none;
   width: auto;
   height: 1.75rem;
+}
+
+.tile-fx-painter-editor-tools button.active {
+  border-color: var(--color-border-highlight, var(--color-warm-2));
+  box-shadow: 0 0 4px var(--color-shadow-highlight, var(--color-warm-2));
+}
+
+/* A fixed width stops the controls to the right from moving when the value changes. */
+.tile-fx-painter-editor-value {
+  min-width: 2.5em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .tile-fx-painter-editor-spacer {
@@ -63,6 +79,9 @@
   overflow: hidden;
 }
 
+/* "touch-action: none" stops a pen or a finger from scrolling the page during a stroke. */
 .tile-fx-painter-editor-view .tile-fx-painter-display {
   flex: none;
+  cursor: crosshair;
+  touch-action: none;
 }

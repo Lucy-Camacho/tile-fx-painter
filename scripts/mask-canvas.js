@@ -10,6 +10,19 @@ const MAX_HISTORY_BYTES = 256 * 1024 * 1024;
  */
 
 /**
+ * The brush or eraser stroke that the user draws at this time.
+ * @typedef {object} Stroke
+ * @property {number} pointerId
+ * @property {boolean} erase                The stroke removes the mask.
+ * @property {number} radius                In mask pixels.
+ * @property {number} hardness              From 0 (soft edge) to 1 (hard edge).
+ * @property {Uint8ClampedArray} before     The mask pixels before the stroke.
+ * @property {{x: number, y: number}} last  The last painted point of the stroke, in mask pixels.
+ * @property {{x: number, y: number}[]} pending  The pointer points that are not painted yet.
+ * @property {{x0: number, y0: number, x1: number, y1: number}|null} dirty  The changed area that the mask canvas does not show yet.
+ */
+
+/**
  * The mask of a tile, the captured image under it, and the view that shows them together.
  * The mask has the same pixel size as the captured image.
  * In the mask, white with full alpha = effect on, transparent = effect off.
@@ -26,7 +39,34 @@ export class MaskCanvas {
     this.showMask = showMask;
     this.display = document.createElement("canvas");
     this.display.classList.add("tile-fx-painter-display");
+
+    // The display stays for the full life of the mask, thus the listeners also stay after a render of the window.
+    const end = this.#onPointerEnd.bind(this);
+    this.display.addEventListener("pointerdown", this.#onPointerDown.bind(this));
+    this.display.addEventListener("pointermove", this.#onPointerMove.bind(this));
+    this.display.addEventListener("pointerup", end);
+    this.display.addEventListener("pointercancel", end);
+    this.display.addEventListener("lostpointercapture", end);
+    this.display.addEventListener("pointerleave", this.#onPointerLeave.bind(this));
   }
+
+  /**
+   * The tool for the pointer: "brush" or "eraser".
+   * @type {string}
+   */
+  tool = "brush";
+
+  /**
+   * The diameter of the brush and the eraser, in mask pixels.
+   * @type {number}
+   */
+  brushSize = 64;
+
+  /**
+   * The hardness of the brush and the eraser edge, from 0 (soft) to 1 (hard).
+   * @type {number}
+   */
+  brushHardness = 0.8;
 
   /**
    * The captured image under the tile.
@@ -49,6 +89,13 @@ export class MaskCanvas {
   /** @type {CanvasRenderingContext2D|null} */
   #maskContext = null;
 
+  /**
+   * The mask pixels. All changes go into this data first, and then into the mask canvas with `putImageData`.
+   * Thus the code never reads pixels back from the mask canvas, and the browser can keep the canvas on the GPU.
+   * @type {ImageData|null}
+   */
+  #pixels = null;
+
   /** @type {HistoryEntry[]} */
   #undo = [];
 
@@ -70,6 +117,21 @@ export class MaskCanvas {
   /** @type {number|null} */
   #frame = null;
 
+  /** @type {Stroke|null} */
+  #stroke = null;
+
+  /**
+   * The alpha of the current stroke for each mask pixel. The array stays between strokes, so that a stroke does not make a new large array.
+   * @type {Uint8Array|null}
+   */
+  #strokeAlpha = null;
+
+  /**
+   * The pointer position on the display, in mask pixels. The display shows the brush circle there.
+   * @type {{x: number, y: number}|null}
+   */
+  #cursor = null;
+
   get canUndo() {
     return this.#undo.length > 0;
   }
@@ -85,16 +147,29 @@ export class MaskCanvas {
    * @param {HTMLCanvasElement} base
    */
   setBase(base) {
+    this.#stroke = null;
     this.base = base;
     const old = this.mask;
     if (!old || (old.width !== base.width) || (old.height !== base.height)) {
+      const { width, height } = base;
+      if (old) {
+        // Scale the old mask to the new size. This is the only read of pixels from a canvas, thus the temporary canvas can be on the CPU.
+        const scaled = document.createElement("canvas");
+        scaled.width = width;
+        scaled.height = height;
+        const ctx = scaled.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(old, 0, 0, width, height);
+        this.#pixels = ctx.getImageData(0, 0, width, height);
+      } else {
+        this.#pixels = new ImageData(width, height);
+      }
+
       const mask = document.createElement("canvas");
-      mask.width = base.width;
-      mask.height = base.height;
-      // The history reads the mask pixels for each change.
-      this.#maskContext = mask.getContext("2d", { willReadFrequently: true });
-      if (old) this.#maskContext.drawImage(old, 0, 0, mask.width, mask.height);
+      mask.width = width;
+      mask.height = height;
+      this.#maskContext = mask.getContext("2d");
       this.mask = mask;
+      this.#putPixels();
 
       // The first capture and each tile resize start a new history.
       this.#undo.length = 0;
@@ -153,6 +228,10 @@ export class MaskCanvas {
 
   /** Draw the captured image, and then the white mask on it. */
   draw() {
+    // Paint the pointer points of this frame. All the points of one frame then need only one canvas update.
+    // Do this before the frame is reset. Then the draw request of the paint does not start one more frame.
+    this.#flushStroke();
+
     if (this.#frame !== null) cancelAnimationFrame(this.#frame);
     this.#frame = null;
 
@@ -161,11 +240,34 @@ export class MaskCanvas {
     ctx.clearRect(0, 0, width, height);
     if (!this.base) return;
     ctx.drawImage(this.base, 0, 0, width, height);
-    if (!this.showMask || !this.mask) return;
+    if (this.showMask && this.mask) {
+      ctx.globalAlpha = this.opacity;
+      ctx.drawImage(this.mask, 0, 0, width, height);
+      ctx.globalAlpha = 1;
+    }
+    this.#drawCursor(ctx);
+  }
 
-    ctx.globalAlpha = this.opacity;
-    ctx.drawImage(this.mask, 0, 0, width, height);
-    ctx.globalAlpha = 1;
+  /**
+   * Draw the brush circle at the pointer position.
+   * The circle has a dark line and a light line, thus it shows on dark and on light images.
+   * @param {CanvasRenderingContext2D} ctx
+   */
+  #drawCursor(ctx) {
+    if (!this.#cursor || !this.mask) return;
+    const scale = this.display.width / this.mask.width;
+    const ratio = window.devicePixelRatio || 1;
+    const x = this.#cursor.x * scale;
+    const y = this.#cursor.y * scale;
+    const radius = Math.max((this.brushSize / 2) * scale, 2 * ratio);
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.lineWidth = 3 * ratio;
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.6)";
+    ctx.stroke();
+    ctx.lineWidth = ratio;
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+    ctx.stroke();
   }
 
   /** Keep the mask before a change, so that undo can restore it. Call this before each change to the mask. */
@@ -215,22 +317,207 @@ export class MaskCanvas {
   invert() {
     if (!this.mask) return;
     this.pushUndo();
-    const data = this.#snapshot();
-    const px = data.data;
+    const px = this.#pixels.data;
     for (let i = 0; i < px.length; i += 4) {
       px[i] = px[i + 1] = px[i + 2] = 255;
       px[i + 3] = 255 - px[i + 3];
     }
-    this.#maskContext.putImageData(data, 0, 0);
-    this.requestDraw();
+    this.#putPixels();
   }
 
   /** Remove the full mask. */
   clear() {
     if (!this.mask) return;
     this.pushUndo();
-    this.#maskContext.clearRect(0, 0, this.mask.width, this.mask.height);
+    this.#pixels.data.fill(0);
+    this.#putPixels();
+  }
+
+  /**
+   * Copy the mask pixels into the mask canvas, and draw the display again.
+   * @param {{x0: number, y0: number, x1: number, y1: number}} [rect]  Copy only this area. The default is the full mask.
+   */
+  #putPixels(rect) {
+    if (rect) this.#maskContext.putImageData(this.#pixels, 0, 0, rect.x0, rect.y0, rect.x1 - rect.x0, rect.y1 - rect.y0);
+    else this.#maskContext.putImageData(this.#pixels, 0, 0);
     this.requestDraw();
+  }
+
+  /** @param {PointerEvent} event */
+  #onPointerDown(event) {
+    if ((event.button !== 0) || !this.base || !this.mask || this.#stroke) return;
+    const point = this.toMaskPoint(event.clientX, event.clientY);
+    this.#cursor = point;
+    // The capture keeps the stroke when the pointer goes out of the display.
+    this.display.setPointerCapture(event.pointerId);
+    this.#beginStroke(event.pointerId, point);
+  }
+
+  /** @param {PointerEvent} event */
+  #onPointerMove(event) {
+    if (!this.mask) return;
+    const stroke = this.#stroke;
+    if (stroke && (event.pointerId === stroke.pointerId)) {
+      // The browser can join many pointer moves into one event. Keep all of them, so that curves stay smooth.
+      // The next animation frame paints them.
+      const events = event.getCoalescedEvents?.() ?? [];
+      for (const e of (events.length ? events : [event])) stroke.pending.push(this.toMaskPoint(e.clientX, e.clientY));
+    }
+    this.#cursor = this.toMaskPoint(event.clientX, event.clientY);
+    this.requestDraw();
+  }
+
+  /** @param {PointerEvent} event */
+  #onPointerEnd(event) {
+    if (this.#stroke?.pointerId !== event.pointerId) return;
+    this.#flushStroke();
+    this.#stroke = null;
+  }
+
+  /** @param {PointerEvent} event */
+  #onPointerLeave(event) {
+    if (this.#stroke?.pointerId === event.pointerId) return;
+    this.#cursor = null;
+    this.requestDraw();
+  }
+
+  /**
+   * Start a brush or eraser stroke. The full stroke is one undo step.
+   * @param {number} pointerId
+   * @param {{x: number, y: number}} point  In mask pixels.
+   */
+  #beginStroke(pointerId, point) {
+    // The undo step and the stroke use the same copy. The stroke only reads it.
+    const before = this.#snapshot();
+    this.#push({ mask: before });
+
+    const size = this.mask.width * this.mask.height;
+    if (this.#strokeAlpha?.length === size) this.#strokeAlpha.fill(0);
+    else this.#strokeAlpha = new Uint8Array(size);
+
+    this.#stroke = {
+      pointerId,
+      erase: this.tool === "eraser",
+      radius: Math.max(this.brushSize, 1) / 2,
+      hardness: Math.clamp(this.brushHardness, 0, 1),
+      before: before.data,
+      last: point,
+      pending: [],
+      dirty: null
+    };
+    this.#paintSegment(point, point);
+    this.#flushStroke();
+  }
+
+  /**
+   * Paint the pointer points that are not painted yet, and copy the changed area into the mask canvas.
+   *
+   * A fast mouse sends many points in each frame. Each segment paints a full brush width, thus most of the pixels again and again.
+   * Points that are nearer than a half brush radius to the last painted point are skipped. For a large brush, this removes most segments.
+   * The last point of the frame is always painted, so that the stroke stays at the pointer.
+   */
+  #flushStroke() {
+    const stroke = this.#stroke;
+    if (!stroke) return;
+    const spacing = Math.max(stroke.radius / 2, 1);
+    const pending = stroke.pending;
+    for (let i = 0; i < pending.length; i++) {
+      const point = pending[i];
+      const far = Math.hypot(point.x - stroke.last.x, point.y - stroke.last.y) >= spacing;
+      if (!far && (i < pending.length - 1)) continue;
+      this.#paintSegment(stroke.last, point);
+      stroke.last = point;
+    }
+    pending.length = 0;
+
+    if (!stroke.dirty) return;
+    this.#putPixels(stroke.dirty);
+    stroke.dirty = null;
+  }
+
+  /**
+   * Paint the stroke from one point to the next point.
+   * @param {{x: number, y: number}} from
+   * @param {{x: number, y: number}} to
+   */
+  #paintSegment(from, to) {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    // A long diagonal line has a very large bounding box. Short parts keep the number of changed pixels small.
+    const parts = Math.max(1, Math.ceil(Math.hypot(dx, dy) / Math.max(this.#stroke.radius, 8)));
+    for (let i = 0; i < parts; i++) {
+      const a = { x: from.x + (dx * i / parts), y: from.y + (dy * i / parts) };
+      const b = { x: from.x + (dx * (i + 1) / parts), y: from.y + (dy * (i + 1) / parts) };
+      this.#paintCapsule(a, b);
+    }
+  }
+
+  /**
+   * Paint a line with round ends from point a to point b into the mask.
+   *
+   * Each pixel keeps the highest stroke alpha of the full stroke, and the mask gets the pixels before the stroke plus that alpha.
+   * Thus the parts of a stroke that overlap do not add together, and a soft edge stays soft.
+   * @param {{x: number, y: number}} a
+   * @param {{x: number, y: number}} b
+   */
+  #paintCapsule(a, b) {
+    const stroke = this.#stroke;
+    const { radius, hardness, erase, before } = stroke;
+    const alpha = this.#strokeAlpha;
+    const px = this.#pixels.data;
+    const { width, height } = this.mask;
+
+    const reach = radius + 0.5;
+    const x0 = Math.max(0, Math.floor(Math.min(a.x, b.x) - reach));
+    const y0 = Math.max(0, Math.floor(Math.min(a.y, b.y) - reach));
+    const x1 = Math.min(width, Math.ceil(Math.max(a.x, b.x) + reach));
+    const y1 = Math.min(height, Math.ceil(Math.max(a.y, b.y) + reach));
+    if ((x1 <= x0) || (y1 <= y0)) return;
+
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const length2 = (dx * dx) + (dy * dy);
+    const invLength2 = length2 ? 1 / length2 : 0;
+    const reach2 = reach * reach;
+    // The width of the soft edge. The minimum of 1 pixel gives a smooth edge to a hard brush.
+    const invFade = 1 / Math.max(radius * (1 - hardness), 1);
+
+    // This loop runs for each pixel under the brush. It uses only simple operations, because function calls such as
+    // Math.hypot are slow here. It also skips the pixels that do not change, which are most pixels when segments overlap.
+    for (let y = y0; y < y1; y++) {
+      const ry = (y + 0.5) - a.y;
+      const row = y * width;
+      for (let x = x0; x < x1; x++) {
+        const rx = (x + 0.5) - a.x;
+        let t = ((rx * dx) + (ry * dy)) * invLength2;
+        t = (t < 0) ? 0 : ((t > 1) ? 1 : t);
+        const ex = rx - (t * dx);
+        const ey = ry - (t * dy);
+        const d2 = (ex * ex) + (ey * ey);
+        if (d2 >= reach2) continue;
+
+        let v = (reach - Math.sqrt(d2)) * invFade;
+        if (v > 1) v = 1;
+        const s = ((v * v * (3 - (2 * v)) * 255) + 0.5) | 0;
+        const i = row + x;
+        if (s <= alpha[i]) continue;
+        alpha[i] = s;
+
+        const o = i * 4;
+        const old = before[o + 3];
+        px[o] = px[o + 1] = px[o + 2] = 255;
+        px[o + 3] = erase ? (((old * (255 - s)) + 127) / 255) | 0 : old + ((((s * (255 - old)) + 127) / 255) | 0);
+      }
+    }
+
+    const dirty = stroke.dirty;
+    if (!dirty) stroke.dirty = { x0, y0, x1, y1 };
+    else {
+      dirty.x0 = Math.min(dirty.x0, x0);
+      dirty.y0 = Math.min(dirty.y0, y0);
+      dirty.x1 = Math.max(dirty.x1, x1);
+      dirty.y1 = Math.max(dirty.y1, y1);
+    }
   }
 
   /**
@@ -256,9 +543,9 @@ export class MaskCanvas {
     this.draw();
   }
 
-  /** @returns {ImageData} */
+  /** @returns {ImageData}  A copy of the mask pixels. */
   #snapshot() {
-    return this.#maskContext.getImageData(0, 0, this.mask.width, this.mask.height);
+    return new ImageData(new Uint8ClampedArray(this.#pixels.data), this.#pixels.width, this.#pixels.height);
   }
 
   /** The memory of one undo step in bytes. */
@@ -293,10 +580,14 @@ export class MaskCanvas {
    */
   #restore(from, to) {
     if (!from.length) return false;
+    // Ctrl+Z during a stroke stops the stroke. Else the next pointer move paints on the restored mask with old data.
+    this.#stroke = null;
     const entry = from.pop();
     if ("mask" in entry) {
-      to.push({ mask: this.#snapshot() });
-      this.#maskContext.putImageData(entry.mask, 0, 0);
+      // Exchange the data objects. A copy is not necessary, because the history entry is not in a stack after this.
+      to.push({ mask: this.#pixels });
+      this.#pixels = entry.mask;
+      this.#maskContext.putImageData(this.#pixels, 0, 0);
     } else if ("opacity" in entry) {
       to.push({ opacity: this.opacity });
       this.opacity = this.#savedOpacity = entry.opacity;

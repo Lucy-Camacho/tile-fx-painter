@@ -20,9 +20,26 @@
       {{localize "TILE_FX_PAINTER.Editor.Invert"}}
     </button>
     <button type="button" data-action="clearMask">
-      <i class="fa-solid fa-eraser" inert></i>
+      <i class="fa-solid fa-trash" inert></i>
       {{localize "TILE_FX_PAINTER.Editor.Clear"}}
     </button>
+  </div>
+  <div class="tile-fx-painter-editor-tools">
+    {{#each tools}}
+    <button type="button" class="{{#if active}}active{{/if}}" data-action="selectTool" data-tool="{{id}}" data-tooltip="{{label}}" aria-label="{{localize label}}" aria-pressed="{{#if active}}true{{else}}false{{/if}}">
+      <i class="{{icon}}" inert></i>
+    </button>
+    {{/each}}
+    <label data-tooltip="TILE_FX_PAINTER.Editor.BrushSize">
+      <i class="fa-solid fa-circle" inert></i>
+      <input type="range" name="brushSize" min="1" max="512" step="1" value="{{brushSize}}">
+      <span class="tile-fx-painter-editor-value">{{brushSize}}</span>
+    </label>
+    <label data-tooltip="TILE_FX_PAINTER.Editor.BrushHardness">
+      <i class="fa-solid fa-bullseye" inert></i>
+      <input type="range" name="brushHardness" min="0" max="100" step="5" value="{{brushHardness}}">
+      <span class="tile-fx-painter-editor-value">{{brushHardness}}%</span>
+    </label>
   </div>
   <div class="tile-fx-painter-editor-view">
     <p class="hint">{{localize "TILE_FX_PAINTER.Editor.Loading"}}</p>

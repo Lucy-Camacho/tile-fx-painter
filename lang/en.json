@@ -40,6 +40,10 @@
       "ShowMask": "Show Mask",
       "Undo": "Undo (Ctrl+Z)",
       "Redo": "Redo (Ctrl+Y)",
+      "Brush": "Brush",
+      "Eraser": "Eraser",
+      "BrushSize": "Brush Size (mask pixels)",
+      "BrushHardness": "Brush Hardness",
       "Invert": "Invert",
       "Clear": "Clear"
     }
