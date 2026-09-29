@@ -1,5 +1,6 @@
 import { MODULE_ID } from "./main.js";
 import { captureBackground } from "./background-capture.js";
+import { MaskCanvas } from "./mask-canvas.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -15,6 +16,9 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
   constructor({ document, ...options } = {}) {
     super({ ...options, id: EffectEditor.getId(document) });
     this.tile = document;
+    // The mask stays when the window renders again.
+    this.mask = new MaskCanvas();
+    this.mask.onHistoryChange = () => this.#updateToolbar();
   }
 
   static DEFAULT_OPTIONS = {
@@ -26,6 +30,12 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     position: {
       width: 720,
       height: 560
+    },
+    actions: {
+      undoMask: EffectEditor.#onUndoMask,
+      redoMask: EffectEditor.#onRedoMask,
+      invertMask: EffectEditor.#onInvertMask,
+      clearMask: EffectEditor.#onClearMask
     }
   };
 
@@ -76,9 +86,50 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /** @override */
+  async _prepareContext(options) {
+    const context = await super._prepareContext(options);
+    return Object.assign(context, {
+      opacity: Math.round(this.mask.opacity * 100),
+      showMask: this.mask.showMask,
+      canUndo: this.mask.canUndo,
+      canRedo: this.mask.canRedo
+    });
+  }
+
+  /** @override */
+  async _onFirstRender(context, options) {
+    await super._onFirstRender(context, options);
+    // A tabindex lets a click in the window give it focus. Then the window gets the keyboard shortcuts.
+    this.element.tabIndex = -1;
+    this.element.addEventListener("keydown", this.#onKeyDown.bind(this));
+  }
+
+  /** @override */
   async _onRender(context, options) {
     await super._onRender(context, options);
+    const toolbar = this.element.querySelector(".tile-fx-painter-editor-toolbar");
+    toolbar.querySelector("[name=opacity]").addEventListener("input", (event) => {
+      this.mask.opacity = event.currentTarget.valueAsNumber / 100;
+      this.mask.requestDraw();
+    });
+    // "change" occurs at the end of a drag. Thus one drag gives one undo step.
+    toolbar.querySelector("[name=opacity]").addEventListener("change", () => this.mask.commitOpacity());
+    toolbar.querySelector("[name=showMask]").addEventListener("change", (event) => {
+      this.mask.setShowMask(event.currentTarget.checked);
+    });
+
+    // Show the mask of an earlier capture at once. The new capture replaces it when it is ready.
+    if (this.mask.base) this.mask.attach(this.element.querySelector(".tile-fx-painter-editor-view"));
+    this.element.focus();
     await this.recapture();
+  }
+
+  /** @override */
+  _onClose(options) {
+    super._onClose(options);
+    // The element stays until the close animation ends. A capture that ends in that time must not attach the view again.
+    this.#captureId++;
+    this.mask.detach();
   }
 
   /**
@@ -103,14 +154,61 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     if ((captureId !== this.#captureId) || !view) return;
 
     if (capture) {
-      capture.classList.add("tile-fx-painter-capture");
-      view.replaceChildren(capture);
+      this.mask.setBase(capture);
+      this.mask.attach(view);
     } else {
+      this.mask.detach();
       const hint = document.createElement("p");
       hint.classList.add("hint");
       hint.textContent = game.i18n.localize(message);
       view.replaceChildren(hint);
     }
+  }
+
+  /** Show the values after an undo or redo, and enable or disable the undo and redo buttons. */
+  #updateToolbar() {
+    const toolbar = this.element?.querySelector(".tile-fx-painter-editor-toolbar");
+    if (!toolbar) return;
+    toolbar.querySelector("[name=opacity]").value = Math.round(this.mask.opacity * 100);
+    toolbar.querySelector("[name=showMask]").checked = this.mask.showMask;
+    toolbar.querySelector("[data-action=undoMask]").disabled = !this.mask.canUndo;
+    toolbar.querySelector("[data-action=redoMask]").disabled = !this.mask.canRedo;
+  }
+
+  /**
+   * Ctrl+Z = undo. Ctrl+Y or Ctrl+Shift+Z = redo. The Cmd key on macOS does the same as the Ctrl key.
+   * @param {KeyboardEvent} event
+   */
+  #onKeyDown(event) {
+    if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+    // Some browsers send a keydown event without a key when they autocomplete a value.
+    const key = event.key?.toLowerCase();
+    if ((key === "z") && !event.shiftKey) this.mask.undo();
+    else if ((key === "y") || (key === "z")) this.mask.redo();
+    else return;
+    // Foundry listens for keys on the window. Without this, Ctrl+Z also reverses the last change on the canvas.
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  /** @this {EffectEditor} */
+  static #onUndoMask() {
+    this.mask.undo();
+  }
+
+  /** @this {EffectEditor} */
+  static #onRedoMask() {
+    this.mask.redo();
+  }
+
+  /** @this {EffectEditor} */
+  static #onInvertMask() {
+    this.mask.invert();
+  }
+
+  /** @this {EffectEditor} */
+  static #onClearMask() {
+    this.mask.clear();
   }
 }
 

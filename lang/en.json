@@ -35,7 +35,13 @@
       "Loading": "Loading the scene background...",
       "NoBackground": "The scene has no background image.",
       "CaptureFailed": "Cannot load the scene background image. Look at the console for more data.",
-      "VideoNotSupported": "Tile FX Painter cannot capture a video background at this time."
+      "VideoNotSupported": "Tile FX Painter cannot capture a video background at this time.",
+      "Opacity": "Mask Opacity",
+      "ShowMask": "Show Mask",
+      "Undo": "Undo (Ctrl+Z)",
+      "Redo": "Redo (Ctrl+Y)",
+      "Invert": "Invert",
+      "Clear": "Clear"
     }
   }
 }

@@ -12,7 +12,7 @@
     "minimum": "13",
     "verified": "13"
   },
-  "esmodules": ["scripts/main.js", "scripts/tile-config-tab.js", "scripts/effect-editor.js", "scripts/background-capture.js"],
+  "esmodules": ["scripts/main.js", "scripts/tile-config-tab.js", "scripts/effect-editor.js", "scripts/background-capture.js", "scripts/mask-canvas.js"],
   "styles": ["styles/tile-fx-painter.css"],
   "languages": [
     {

@@ -1,4 +1,29 @@
 <div class="tile-fx-painter-editor">
+  <div class="tile-fx-painter-editor-toolbar">
+    <label class="tile-fx-painter-editor-opacity" data-tooltip="TILE_FX_PAINTER.Editor.Opacity">
+      <i class="fa-solid fa-droplet-percent" inert></i>
+      <input type="range" name="opacity" min="0" max="100" step="5" value="{{opacity}}">
+    </label>
+    <label class="checkbox">
+      <input type="checkbox" name="showMask" {{checked showMask}}>
+      {{localize "TILE_FX_PAINTER.Editor.ShowMask"}}
+    </label>
+    <span class="tile-fx-painter-editor-spacer"></span>
+    <button type="button" data-action="undoMask" data-tooltip="TILE_FX_PAINTER.Editor.Undo" aria-label="{{localize "TILE_FX_PAINTER.Editor.Undo"}}" {{disabled (not canUndo)}}>
+      <i class="fa-solid fa-rotate-left" inert></i>
+    </button>
+    <button type="button" data-action="redoMask" data-tooltip="TILE_FX_PAINTER.Editor.Redo" aria-label="{{localize "TILE_FX_PAINTER.Editor.Redo"}}" {{disabled (not canRedo)}}>
+      <i class="fa-solid fa-rotate-right" inert></i>
+    </button>
+    <button type="button" data-action="invertMask">
+      <i class="fa-solid fa-circle-half-stroke" inert></i>
+      {{localize "TILE_FX_PAINTER.Editor.Invert"}}
+    </button>
+    <button type="button" data-action="clearMask">
+      <i class="fa-solid fa-eraser" inert></i>
+      {{localize "TILE_FX_PAINTER.Editor.Clear"}}
+    </button>
+  </div>
   <div class="tile-fx-painter-editor-view">
     <p class="hint">{{localize "TILE_FX_PAINTER.Editor.Loading"}}</p>
   </div>
