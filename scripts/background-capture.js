@@ -4,11 +4,25 @@ import { MODULE_ID } from "./main.js";
 const MAX_SIZE = 4096;
 
 /**
+ * Load an image and wait until the browser can draw it.
+ * @param {string} src
+ * @returns {Promise<HTMLImageElement>}
+ */
+export async function loadImage(src) {
+  const img = new Image();
+  // The "anonymous" value prevents a tainted canvas when the image is on S3 or a CDN. A tainted canvas cannot give its pixels.
+  img.crossOrigin = "anonymous";
+  img.src = src;
+  await img.decode();
+  return img;
+}
+
+/**
  * Capture the part of the scene background image that a tile covers.
  * The function uses only the document data, not the canvas. Thus it also works for a scene that is not on the canvas.
  * The capture follows the tile rotation. The top edge of the capture is the top edge of the tile.
  * @param {TileDocument} tile
- * @returns {Promise<HTMLCanvasElement|null>}  The capture, or null if the scene has no background image that can be captured.
+ * @returns {Promise<HTMLCanvasElement|null>}  The capture, or null if the scene has no background image that the function can capture.
  * @throws {Error}  If the image does not load.
  */
 export async function captureBackground(tile) {
@@ -21,12 +35,9 @@ export async function captureBackground(tile) {
     return null;
   }
 
-  // The "anonymous" value prevents a tainted canvas when the image is on S3 or a CDN. A tainted canvas cannot give its pixels.
-  const img = new Image();
-  img.crossOrigin = "anonymous";
-  img.src = src;
+  let img;
   try {
-    await img.decode();
+    img = await loadImage(src);
   } catch (err) {
     throw new Error(`${MODULE_ID} | Cannot load the scene background "${src}"`, { cause: err });
   }

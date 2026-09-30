@@ -2,3 +2,4 @@
 logs/
 # Masks made during tests
 masks/
+storage/

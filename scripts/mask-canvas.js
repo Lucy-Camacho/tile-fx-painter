@@ -5,8 +5,8 @@ const MAX_HISTORY = 30;
 const MAX_HISTORY_BYTES = 256 * 1024 * 1024;
 
 /**
- * One undo step. It has a copy of the mask, an opacity value, or a "Show Mask" value.
- * @typedef {{mask: ImageData}|{opacity: number}|{showMask: boolean}} HistoryEntry
+ * One undo step. It has a copy of the mask and its version, an opacity value, or a "Show Mask" value.
+ * @typedef {{mask: ImageData, version: number}|{opacity: number}|{showMask: boolean}} HistoryEntry
  */
 
 /**
@@ -18,7 +18,7 @@ const MAX_HISTORY_BYTES = 256 * 1024 * 1024;
  * @property {number} hardness              From 0 (soft edge) to 1 (hard edge).
  * @property {Uint8ClampedArray} before     The mask pixels before the stroke.
  * @property {{x: number, y: number}} last  The last painted point of the stroke, in mask pixels.
- * @property {{x: number, y: number}[]} pending  The pointer points that are not painted yet.
+ * @property {{x: number, y: number}[]} pending  The pointer points that the stroke did not paint yet.
  * @property {{x0: number, y0: number, x1: number, y1: number}|null} dirty  The changed area that the mask canvas does not show yet.
  */
 
@@ -96,6 +96,19 @@ export class MaskCanvas {
    */
   #pixels = null;
 
+  /**
+   * The version of the mask pixels. Each change to the mask gets a new version, and undo and redo restore the old version.
+   * Thus the mask has no unsaved changes when this value is the same as `#savedVersion`, also after an undo back to the saved mask.
+   * @type {number}
+   */
+  #version = 0;
+
+  /** The highest version that the mask gave to a change. A new change never gets a version that the history also has. */
+  #lastVersion = 0;
+
+  /** The version at the last save or load. */
+  #savedVersion = 0;
+
   /** @type {HistoryEntry[]} */
   #undo = [];
 
@@ -141,8 +154,33 @@ export class MaskCanvas {
   }
 
   /**
+   * The version of the mask pixels at this time. Give it to `markSaved` after the save.
+   * @type {number}
+   */
+  get version() {
+    return this.#version;
+  }
+
+  /**
+   * The mask has changes after the last save or load. Opacity and "Show Mask" changes are not mask changes.
+   * @type {boolean}
+   */
+  get isDirty() {
+    return this.#version !== this.#savedVersion;
+  }
+
+  /**
+   * Record a version of the mask as the saved version.
+   * @param {number} [version]  The version in the saved file. Changes after this version stay unsaved.
+   */
+  markSaved(version = this.#version) {
+    this.#savedVersion = version;
+    this.onHistoryChange?.();
+  }
+
+  /**
    * Set a new captured image.
-   * If the size is different from the mask, the mask is scaled to the new size and the full undo history is cleared.
+   * If the size is different from the mask, this function scales the mask to the new size and clears the full undo history.
    * The first capture also clears the full undo history.
    * @param {HTMLCanvasElement} base
    */
@@ -152,17 +190,7 @@ export class MaskCanvas {
     const old = this.mask;
     if (!old || (old.width !== base.width) || (old.height !== base.height)) {
       const { width, height } = base;
-      if (old) {
-        // Scale the old mask to the new size. This is the only read of pixels from a canvas, thus the temporary canvas can be on the CPU.
-        const scaled = document.createElement("canvas");
-        scaled.width = width;
-        scaled.height = height;
-        const ctx = scaled.getContext("2d", { willReadFrequently: true });
-        ctx.drawImage(old, 0, 0, width, height);
-        this.#pixels = ctx.getImageData(0, 0, width, height);
-      } else {
-        this.#pixels = new ImageData(width, height);
-      }
+      this.#pixels = old ? MaskCanvas.#readScaled(old, width, height) : new ImageData(width, height);
 
       const mask = document.createElement("canvas");
       mask.width = width;
@@ -177,6 +205,29 @@ export class MaskCanvas {
       this.onHistoryChange?.();
     }
     this.#fit();
+  }
+
+  /**
+   * Replace the mask with a saved mask image. If the image size is different from the mask, this function scales the image to the mask size.
+   * This function also clears the full undo history, so that undo cannot go back to the empty mask before the load.
+   * Call this after `setBase`, because `setBase` sets the mask size.
+   * @param {CanvasImageSource} image
+   */
+  load(image) {
+    if (!this.mask) return;
+    this.#stroke = null;
+    this.#pixels = MaskCanvas.#readScaled(image, this.mask.width, this.mask.height);
+    this.#putPixels();
+    this.#undo.length = 0;
+    this.#redo.length = 0;
+    this.#version = this.#savedVersion = ++this.#lastVersion;
+    this.onHistoryChange?.();
+  }
+
+  /** Paint the pointer points that the stroke did not paint yet, and stop the stroke. Call this before a save, so that the file has the full stroke. */
+  endStroke() {
+    this.#flushStroke();
+    this.#stroke = null;
   }
 
   /**
@@ -272,7 +323,7 @@ export class MaskCanvas {
 
   /** Keep the mask before a change, so that undo can restore it. Call this before each change to the mask. */
   pushUndo() {
-    this.#push({ mask: this.#snapshot() });
+    this.#pushMask(this.#snapshot());
   }
 
   /**
@@ -389,7 +440,7 @@ export class MaskCanvas {
   #beginStroke(pointerId, point) {
     // The undo step and the stroke use the same copy. The stroke only reads it.
     const before = this.#snapshot();
-    this.#push({ mask: before });
+    this.#pushMask(before);
 
     const size = this.mask.width * this.mask.height;
     if (this.#strokeAlpha?.length === size) this.#strokeAlpha.fill(0);
@@ -410,7 +461,7 @@ export class MaskCanvas {
   }
 
   /**
-   * Paint the pointer points that are not painted yet, and copy the changed area into the mask canvas.
+   * Paint the pointer points that the stroke did not paint yet, and copy the changed area into the mask canvas.
    *
    * A fast mouse sends many points in each frame. Each segment paints a full brush width, thus most of the pixels again and again.
    * Points that are nearer than a half brush radius to the last painted point are skipped. For a large brush, this removes most segments.
@@ -548,9 +599,41 @@ export class MaskCanvas {
     return new ImageData(new Uint8ClampedArray(this.#pixels.data), this.#pixels.width, this.#pixels.height);
   }
 
+  /**
+   * Draw an image with a new size into a temporary canvas, and read its pixels.
+   * This is the only read of pixels from a canvas, thus the temporary canvas can be on the CPU.
+   * @param {CanvasImageSource} image
+   * @param {number} width
+   * @param {number} height
+   * @returns {ImageData}
+   */
+  static #readScaled(image, width, height) {
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(image, 0, 0, width, height);
+    const pixels = ctx.getImageData(0, 0, width, height);
+    // The canvas keeps colors multiplied by alpha. Thus a transparent pixel comes back black. Only the alpha is the mask.
+    const px = pixels.data;
+    for (let i = 0; i < px.length; i += 4) px[i] = px[i + 1] = px[i + 2] = 255;
+    return pixels;
+  }
+
   /** The memory of one undo step in bytes. */
   get #snapshotBytes() {
     return this.mask.width * this.mask.height * 4;
+  }
+
+  /**
+   * Add an undo step for a change to the mask, and give the changed mask a new version.
+   * @param {ImageData} before  A copy of the mask before the change.
+   */
+  #pushMask(before) {
+    const version = this.#version;
+    // Set the new version before the push. The push updates the toolbar, and the toolbar shows the unsaved state.
+    this.#version = ++this.#lastVersion;
+    this.#push({ mask: before, version });
   }
 
   /**
@@ -585,8 +668,9 @@ export class MaskCanvas {
     const entry = from.pop();
     if ("mask" in entry) {
       // Exchange the data objects. A copy is not necessary, because the history entry is not in a stack after this.
-      to.push({ mask: this.#pixels });
+      to.push({ mask: this.#pixels, version: this.#version });
       this.#pixels = entry.mask;
+      this.#version = entry.version;
       this.#maskContext.putImageData(this.#pixels, 0, 0);
     } else if ("opacity" in entry) {
       to.push({ opacity: this.opacity });

@@ -1,8 +1,45 @@
 import { MODULE_ID } from "./main.js";
-import { captureBackground } from "./background-capture.js";
+import { captureBackground, loadImage } from "./background-capture.js";
 import { MaskCanvas } from "./mask-canvas.js";
 
-const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
+const { ApplicationV2, DialogV2, HandlebarsApplicationMixin } = foundry.applications.api;
+
+/**
+ * Get the mask directory from the setting.
+ * The folder picker of the setting keeps only the path, not the file source. For an S3 folder, the path does not
+ * include the bucket. Thus the editor uses only the "data" source, and refuses a path that is not in the user data.
+ * @returns {string|null}  A path without a "/" at the start or the end, or null if the path is not in the user data.
+ */
+function getMaskDirectory() {
+  const dir = game.settings.get(MODULE_ID, "maskDirectory").trim().replace(/^\/+|\/+$/g, "");
+  if (/^[a-z][a-z\d+.-]*:/i.test(dir)) return null;
+  // The FilePicker also uses this list to find paths in the "public" source.
+  if (CONST.FILE_PICKER_PUBLIC_DIRS.includes(dir.split("/")[0])) return null;
+  return dir;
+}
+
+/**
+ * Make a directory in the user data, and each parent directory that does not exist.
+ * @param {string} dir  A path without a "/" at the start or the end.
+ * @returns {Promise<void>}
+ */
+async function ensureDirectory(dir) {
+  const FilePicker = foundry.applications.apps.FilePicker.implementation;
+  try {
+    await FilePicker.browse("data", dir);
+    return;
+  } catch {
+    // The directory does not exist. Make it below.
+  }
+  const parts = dir.split("/");
+  for (let i = 1; i <= parts.length; i++) {
+    try {
+      await FilePicker.createDirectory("data", parts.slice(0, i).join("/"));
+    } catch {
+      // The directory exists already. If there is a different problem, the upload fails and tells the user.
+    }
+  }
+}
 
 /**
  * The window where the user makes the effect mask for one tile.
@@ -36,7 +73,8 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
       undoMask: EffectEditor.#onUndoMask,
       redoMask: EffectEditor.#onRedoMask,
       invertMask: EffectEditor.#onInvertMask,
-      clearMask: EffectEditor.#onClearMask
+      clearMask: EffectEditor.#onClearMask,
+      saveMask: EffectEditor.#onSaveMask
     }
   };
 
@@ -54,6 +92,15 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
    * @type {number}
    */
   #captureId = 0;
+
+  /** The saved mask of the tile is in the mask. The editor loads it only one time, at the first capture. */
+  #maskLoaded = false;
+
+  /** A save is in progress. */
+  #saving = false;
+
+  /** The "unsaved changes" dialog is open. */
+  #confirmingClose = false;
 
   static PARTS = {
     main: {
@@ -92,6 +139,21 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     return game.i18n.format("TILE_FX_PAINTER.Editor.Title", { id: this.tile.id });
   }
 
+  /**
+   * The tile and its scene exist, and no deletion removed them.
+   * Foundry removes a deleted document from its collection before all delete and close hooks. Thus this value is correct in each close path.
+   * @type {boolean}
+   */
+  get #tileExists() {
+    const scene = this.tile.parent;
+    return !!this.tile.collection?.has(this.tile.id) && !!scene?.collection?.has(scene.id);
+  }
+
+  /** The mask has changes to save, and no save is in progress. */
+  get canSave() {
+    return this.mask.isDirty && !this.#saving;
+  }
+
   /** @override */
   async _prepareContext(options) {
     const context = await super._prepareContext(options);
@@ -102,7 +164,8 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
       opacity: Math.round(this.mask.opacity * 100),
       showMask: this.mask.showMask,
       canUndo: this.mask.canUndo,
-      canRedo: this.mask.canRedo
+      canRedo: this.mask.canRedo,
+      canSave: this.canSave
     });
   }
 
@@ -142,6 +205,35 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     await this.recapture();
   }
 
+  /**
+   * Ask the user before the editor closes with unsaved mask changes.
+   * The close button, the Escape key, and the close of the tile sheet all come here.
+   * The editor cannot save the mask of a deleted tile, thus it closes without a question after a tile or scene deletion.
+   * @param {object} [options]
+   * @param {boolean} [options.discard]  Close without a question, and discard the unsaved changes.
+   * @override
+   */
+  async close(options = {}) {
+    if (!options.discard && this.rendered && this.mask.isDirty && this.#tileExists) {
+      // A second close request (for example, a second Escape) must not open a second dialog.
+      if (this.#confirmingClose) return this;
+      this.#confirmingClose = true;
+      let discard;
+      try {
+        discard = await DialogV2.confirm({
+          window: { title: "TILE_FX_PAINTER.Editor.UnsavedTitle", icon: "fa-solid fa-triangle-exclamation" },
+          content: `<p>${game.i18n.localize("TILE_FX_PAINTER.Editor.UnsavedContent")}</p>`,
+          rejectClose: false,
+          modal: true
+        });
+      } finally {
+        this.#confirmingClose = false;
+      }
+      if (!discard) return this;
+    }
+    return super.close(options);
+  }
+
   /** @override */
   _onClose(options) {
     super._onClose(options);
@@ -157,6 +249,8 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
    */
   async recapture() {
     const captureId = ++this.#captureId;
+    // Load the saved mask at the same time as the capture. The mask gets its size from the capture, thus the load waits for it.
+    const savedMask = this.#maskLoaded ? null : this.#loadSavedMask();
 
     let capture = null;
     let message = "TILE_FX_PAINTER.Editor.NoBackground";
@@ -166,6 +260,7 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
       console.error(err);
       message = "TILE_FX_PAINTER.Editor.CaptureFailed";
     }
+    const savedImage = await savedMask;
 
     // A newer capture started, or the window closed, while this capture loaded.
     const view = this.element?.querySelector(".tile-fx-painter-editor-view");
@@ -173,6 +268,10 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
 
     if (capture) {
       this.mask.setBase(capture);
+      if (savedMask) {
+        this.#maskLoaded = true;
+        if (savedImage) this.mask.load(savedImage);
+      }
       this.mask.attach(view);
     } else {
       this.mask.detach();
@@ -183,7 +282,67 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     }
   }
 
-  /** Show the values after an undo or redo, and enable or disable the undo and redo buttons. */
+  /**
+   * Save the mask as a PNG file in the mask directory, and keep the file path in the tile flag "mask".
+   * @returns {Promise<boolean>}  True if the editor saved the mask.
+   */
+  async save() {
+    if (!this.canSave || !this.mask.mask) return false;
+    const dir = getMaskDirectory();
+    if (dir === null) {
+      ui.notifications.error("TILE_FX_PAINTER.Editor.InvalidDirectory", { localize: true });
+      return false;
+    }
+    this.#saving = true;
+    this.#updateToolbar();
+    try {
+      // The last pointer points of a stroke go into the mask canvas only in the next frame. The file must include them.
+      this.mask.endStroke();
+      // The browser takes the canvas pixels when toBlob starts. Changes after this point stay unsaved.
+      const version = this.mask.version;
+      const blob = await new Promise((resolve) => this.mask.mask.toBlob(resolve, "image/png"));
+      if (!blob) throw new Error(`${MODULE_ID} | The mask canvas did not give a PNG file`);
+      const file = new File([blob], `${this.tile.parent.id}-${this.tile.id}.png`, { type: "image/png" });
+
+      if (dir) await ensureDirectory(dir);
+      const FilePicker = foundry.applications.apps.FilePicker.implementation;
+      const result = await FilePicker.upload("data", dir, file, {}, { notify: false });
+      if (!result?.path) throw new Error(`${MODULE_ID} | The upload of "${file.name}" to "${dir}" failed`);
+
+      // The file name stays the same for each save. The timestamp makes a new URL, thus the browser does not show an old cached image.
+      // "render: false" stops a new render of the open tile sheets on all clients. A new render fills the form from the saved
+      // data and removes the changes that the user did not submit. The sheets do not show the "mask" flag, thus they stay correct.
+      await this.tile.update({ [`flags.${MODULE_ID}.mask`]: `${result.path}?v=${Date.now()}` }, { render: false });
+      this.mask.markSaved(version);
+      ui.notifications.info("TILE_FX_PAINTER.Editor.Saved", { localize: true });
+      return true;
+    } catch (err) {
+      console.error(err);
+      ui.notifications.error("TILE_FX_PAINTER.Editor.SaveFailed", { localize: true });
+      return false;
+    } finally {
+      this.#saving = false;
+      this.#updateToolbar();
+    }
+  }
+
+  /**
+   * Load the saved mask image of the tile.
+   * @returns {Promise<HTMLImageElement|null>}  The image, or null if the tile has no saved mask or the image does not load.
+   */
+  async #loadSavedMask() {
+    const path = this.tile.flags[MODULE_ID]?.mask;
+    if (!path) return null;
+    try {
+      return await loadImage(path);
+    } catch (err) {
+      console.error(`${MODULE_ID} | Cannot load the saved mask "${path}"`, err);
+      ui.notifications.warn(game.i18n.format("TILE_FX_PAINTER.Editor.LoadFailed", { path }));
+      return null;
+    }
+  }
+
+  /** Show the values after an undo or redo, and enable or disable the undo, redo, and save buttons. */
   #updateToolbar() {
     const toolbar = this.element?.querySelector(".tile-fx-painter-editor-toolbar");
     if (!toolbar) return;
@@ -191,6 +350,7 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     toolbar.querySelector("[name=showMask]").checked = this.mask.showMask;
     toolbar.querySelector("[data-action=undoMask]").disabled = !this.mask.canUndo;
     toolbar.querySelector("[data-action=redoMask]").disabled = !this.mask.canRedo;
+    toolbar.querySelector("[data-action=saveMask]").disabled = !this.canSave;
   }
 
   /**
@@ -242,6 +402,11 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
   static #onClearMask() {
     this.mask.clear();
   }
+
+  /** @this {EffectEditor} */
+  static #onSaveMask() {
+    this.save();
+  }
 }
 
 // The capture uses the saved tile data. Capture again when the area under the tile changes.
@@ -250,10 +415,18 @@ Hooks.on("updateTile", (tile, changes) => {
   foundry.applications.instances.get(EffectEditor.getId(tile))?.recapture();
 });
 
-// An editor for a deleted tile cannot save its mask. Close it.
-Hooks.on("deleteTile", (tile) => {
-  foundry.applications.instances.get(EffectEditor.getId(tile))?.close();
-});
+/**
+ * Close the editor of a deleted tile without a question. The editor cannot save the mask of a deleted tile.
+ * @param {TileDocument} tile
+ */
+function discardEditor(tile) {
+  foundry.applications.instances.get(EffectEditor.getId(tile))?.close({ discard: true });
+}
+
+Hooks.on("deleteTile", (tile) => discardEditor(tile));
+
+// A scene deletion does not call "deleteTile" for the tiles of the scene. The scene keeps its tiles collection after the deletion.
+Hooks.on("deleteScene", (scene) => scene.tiles.forEach(discardEditor));
 
 // The editor is a part of the tile sheet for the user. Close it with the sheet.
 // "Update Tile" also closes the sheet, thus it also closes the editor.

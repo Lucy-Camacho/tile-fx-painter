@@ -23,6 +23,10 @@
       <i class="fa-solid fa-trash" inert></i>
       {{localize "TILE_FX_PAINTER.Editor.Clear"}}
     </button>
+    <button type="button" data-action="saveMask" {{disabled (not canSave)}}>
+      <i class="fa-solid fa-floppy-disk" inert></i>
+      {{localize "TILE_FX_PAINTER.Editor.Save"}}
+    </button>
   </div>
   <div class="tile-fx-painter-editor-tools">
     {{#each tools}}

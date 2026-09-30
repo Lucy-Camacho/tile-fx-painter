@@ -45,7 +45,20 @@
       "BrushSize": "Brush Size (mask pixels)",
       "BrushHardness": "Brush Hardness",
       "Invert": "Invert",
-      "Clear": "Clear"
+      "Clear": "Clear",
+      "Save": "Save",
+      "Saved": "The editor saved the mask.",
+      "SaveFailed": "Cannot save the mask. Look at the console for more data.",
+      "InvalidDirectory": "Cannot save the mask. The Mask Directory setting must be a directory in the User Data. Change the setting in the module settings.",
+      "LoadFailed": "Cannot load the saved mask \"{path}\". The editor starts with an empty mask.",
+      "UnsavedTitle": "Unsaved Mask",
+      "UnsavedContent": "The mask has unsaved changes. Close the editor and discard the changes?"
+    },
+    "Settings": {
+      "MaskDirectory": {
+        "Name": "Mask Directory",
+        "Hint": "The directory in the User Data for the mask files of the Effect Editor. Other sources, for example Core Data and S3, do not work. The default directory stays after a module update. A module update or a reinstall can delete other directories in modules/tile-fx-painter/."
+      }
     }
   }
 }
