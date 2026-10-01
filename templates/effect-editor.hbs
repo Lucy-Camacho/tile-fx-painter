@@ -53,12 +53,20 @@
         <span class="tile-fx-painter-editor-value">{{selectTolerance}}%</span>
       </label>
       <select name="selectMode" data-tooltip="TILE_FX_PAINTER.Editor.SelectMode" aria-label="{{localize "TILE_FX_PAINTER.Editor.SelectMode"}}">
-        {{selectOptions selectModes selected=selectMode localize=true}}
+        {{selectOptions maskModes selected=selectMode localize=true}}
       </select>
       <label class="checkbox" data-tooltip="TILE_FX_PAINTER.Editor.ContiguousHint">
         <input type="checkbox" name="selectContiguous" {{checked selectContiguous}}>
         {{localize "TILE_FX_PAINTER.Editor.Contiguous"}}
       </label>
+    </div>
+    <div class="tile-fx-painter-editor-options" data-tools="rect ellipse polygon" {{#unless showShapeOptions}}hidden{{/unless}}>
+      <select name="shapeMode" data-tooltip="TILE_FX_PAINTER.Editor.ShapeMode" aria-label="{{localize "TILE_FX_PAINTER.Editor.ShapeMode"}}">
+        {{selectOptions maskModes selected=shapeMode localize=true}}
+      </select>
+    </div>
+    <div class="tile-fx-painter-editor-options" data-tools="polygon" {{#unless showPolygonHint}}hidden{{/unless}}>
+      <span class="hint">{{localize "TILE_FX_PAINTER.Editor.PolygonHint"}}</span>
     </div>
   </div>
   <div class="tile-fx-painter-editor-view">

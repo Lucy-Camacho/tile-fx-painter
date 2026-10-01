@@ -82,11 +82,14 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
   static TOOLS = [
     { id: "brush", icon: "fa-solid fa-paintbrush", label: "TILE_FX_PAINTER.Editor.Brush" },
     { id: "eraser", icon: "fa-solid fa-eraser", label: "TILE_FX_PAINTER.Editor.Eraser" },
-    { id: "select", icon: "fa-solid fa-wand-magic-sparkles", label: "TILE_FX_PAINTER.Editor.ColorSelect" }
+    { id: "select", icon: "fa-solid fa-wand-magic-sparkles", label: "TILE_FX_PAINTER.Editor.ColorSelect" },
+    { id: "rect", icon: "fa-regular fa-square", label: "TILE_FX_PAINTER.Editor.Rectangle" },
+    { id: "ellipse", icon: "fa-regular fa-circle", label: "TILE_FX_PAINTER.Editor.Ellipse" },
+    { id: "polygon", icon: "fa-solid fa-draw-polygon", label: "TILE_FX_PAINTER.Editor.Polygon" }
   ];
 
-  /** The modes of the color select. */
-  static SELECT_MODES = {
+  /** The modes of the color select and the shapes. */
+  static MASK_MODES = {
     add: "TILE_FX_PAINTER.Editor.SelectAdd",
     subtract: "TILE_FX_PAINTER.Editor.SelectSubtract"
   };
@@ -172,8 +175,11 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
       showSelectOptions: this.#toolHasOptions(this.mask.tool, "select"),
       selectTolerance: this.mask.selectTolerance,
       selectMode: this.mask.selectMode,
-      selectModes: EffectEditor.SELECT_MODES,
+      maskModes: EffectEditor.MASK_MODES,
       selectContiguous: this.mask.selectContiguous,
+      showShapeOptions: this.#toolHasOptions(this.mask.tool, "rect ellipse polygon"),
+      showPolygonHint: this.#toolHasOptions(this.mask.tool, "polygon"),
+      shapeMode: this.mask.shapeMode,
       opacity: Math.round(this.mask.opacity * 100),
       showMask: this.mask.showMask,
       canUndo: this.mask.canUndo,
@@ -211,6 +217,9 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     });
     el.querySelector("[name=selectContiguous]").addEventListener("change", (event) => {
       this.mask.selectContiguous = event.currentTarget.checked;
+    });
+    el.querySelector("[name=shapeMode]").addEventListener("change", (event) => {
+      this.mask.shapeMode = event.currentTarget.value;
     });
     el.querySelector("[name=opacity]").addEventListener("input", (event) => {
       this.mask.opacity = event.currentTarget.valueAsNumber / 100;
@@ -388,13 +397,22 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
 
   /**
    * Ctrl+Z = undo. Ctrl+Y or Ctrl+Shift+Z = redo. The Cmd key on macOS does the same as the Ctrl key.
+   * During a shape: Escape = cancel the shape. Enter = close the polygon. Backspace = remove the last polygon point.
    * @param {KeyboardEvent} event
    */
   #onKeyDown(event) {
-    if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+    if (event.altKey) return;
     // Some browsers send a keydown event without a key when they autocomplete a value.
     const key = event.key?.toLowerCase();
-    if ((key === "z") && !event.shiftKey) this.mask.undo();
+    if (!(event.ctrlKey || event.metaKey)) {
+      // These keys do their usual action when there is no shape. For example, Escape closes the editor.
+      let used = false;
+      if (key === "escape") used = this.mask.cancelShape();
+      else if (key === "enter") used = this.mask.closePolygon();
+      else if (key === "backspace") used = this.mask.removePolygonPoint();
+      if (!used) return;
+    }
+    else if ((key === "z") && !event.shiftKey) this.mask.undo();
     else if ((key === "y") || (key === "z")) this.mask.redo();
     else return;
     // Foundry listens for keys on the window. Without this, Ctrl+Z also reverses the last change on the canvas.
@@ -417,7 +435,7 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     for (const group of this.element.querySelectorAll(".tile-fx-painter-editor-options")) {
       group.hidden = !this.#toolHasOptions(this.mask.tool, group.dataset.tools);
     }
-    // The brush circle shows only for the brush and the eraser.
+    // The brush circle shows only for the brush and the eraser. The tool change also removes a shape preview.
     this.mask.requestDraw();
   }
 

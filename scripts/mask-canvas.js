@@ -7,6 +7,18 @@ const MAX_HISTORY_BYTES = 256 * 1024 * 1024;
 /** The RGB distance between black and white. Tolerance 100% of the color select accepts this distance. */
 const MAX_COLOR_DISTANCE = Math.sqrt(3) * 255;
 
+/** A click nearer than this distance (in screen pixels) to the first point of a polygon closes the polygon. */
+const POLYGON_CLOSE_DISTANCE = 8;
+
+/**
+ * A click nearer than this distance (in screen pixels) to the last point of a polygon does not add a point.
+ * Thus the second click of a double-click does not add a second point at the same place.
+ */
+const POLYGON_SAME_POINT_DISTANCE = 3;
+
+/** The tools that draw a shape. */
+const SHAPE_TOOLS = ["rect", "ellipse", "polygon"];
+
 /**
  * One undo step. It has a copy of the mask and its version, an opacity value, or a "Show Mask" value.
  * @typedef {{mask: ImageData, version: number}|{opacity: number}|{showMask: boolean}} HistoryEntry
@@ -23,6 +35,14 @@ const MAX_COLOR_DISTANCE = Math.sqrt(3) * 255;
  * @property {{x: number, y: number}} last  The last painted point of the stroke, in mask pixels.
  * @property {{x: number, y: number}[]} pending  The pointer points that the stroke did not paint yet.
  * @property {{x0: number, y0: number, x1: number, y1: number}|null} dirty  The changed area that the mask canvas does not show yet.
+ */
+
+/**
+ * The shape that the user draws at this time. All points are in mask pixels.
+ * A rectangle or an ellipse fills the box between its two corners. The user drags it with one pointer.
+ * A polygon gets one point for each click.
+ * @typedef {{tool: "rect"|"ellipse", pointerId: number, start: {x: number, y: number}, end: {x: number, y: number}}
+ *   |{tool: "polygon", points: {x: number, y: number}[]}} Shape
  */
 
 /**
@@ -51,13 +71,33 @@ export class MaskCanvas {
     this.display.addEventListener("pointercancel", end);
     this.display.addEventListener("lostpointercapture", end);
     this.display.addEventListener("pointerleave", this.#onPointerLeave.bind(this));
+    this.display.addEventListener("dblclick", this.#onDoubleClick.bind(this));
+  }
+
+  /** @type {string} */
+  #tool = "brush";
+
+  /**
+   * The tool for the pointer: "brush", "eraser", "select" (color select), "rect", "ellipse", or "polygon".
+   * A tool change cancels the shape that the user draws at this time.
+   * @type {string}
+   */
+  get tool() {
+    return this.#tool;
+  }
+
+  set tool(tool) {
+    if (tool === this.#tool) return;
+    this.#tool = tool;
+    this.cancelShape();
+    this.requestDraw();
   }
 
   /**
-   * The tool for the pointer: "brush", "eraser", or "select" (color select).
+   * The shapes add their area to the mask ("add"), or remove it from the mask ("subtract").
    * @type {string}
    */
-  tool = "brush";
+  shapeMode = "add";
 
   /**
    * The color difference that the color select accepts, from 0 (the same color only) to 100 (all colors).
@@ -160,6 +200,9 @@ export class MaskCanvas {
   /** @type {Stroke|null} */
   #stroke = null;
 
+  /** @type {Shape|null} */
+  #shape = null;
+
   /**
    * The alpha of the current stroke for each mask pixel. The array stays between strokes, so that a stroke does not make a new large array.
    * @type {Uint8Array|null}
@@ -213,6 +256,8 @@ export class MaskCanvas {
    */
   setBase(base) {
     this.#stroke = null;
+    // The points of a shape are in mask pixels. They are not correct after a size change.
+    this.#shape = null;
     this.base = base;
     this.#basePixels = null;
     const old = this.mask;
@@ -324,30 +369,71 @@ export class MaskCanvas {
       ctx.drawImage(this.mask, 0, 0, width, height);
       ctx.globalAlpha = 1;
     }
+    this.#drawShape(ctx);
     this.#drawCursor(ctx);
   }
 
   /**
    * Draw the brush circle at the pointer position.
-   * The circle has a dark line and a light line, thus it shows on dark and on light images.
    * @param {CanvasRenderingContext2D} ctx
    */
   #drawCursor(ctx) {
-    // The color select uses only the crosshair pointer of the display.
-    if (!this.#cursor || !this.mask || (this.tool === "select")) return;
+    // The other tools use only the crosshair pointer of the display.
+    if (!this.#cursor || !this.mask || !["brush", "eraser"].includes(this.tool)) return;
     const scale = this.display.width / this.mask.width;
     const ratio = window.devicePixelRatio || 1;
-    const x = this.#cursor.x * scale;
-    const y = this.#cursor.y * scale;
-    const radius = Math.max((this.brushSize / 2) * scale, 2 * ratio);
-    ctx.beginPath();
-    ctx.arc(x, y, radius, 0, Math.PI * 2);
-    ctx.lineWidth = 3 * ratio;
+    const path = new Path2D();
+    path.arc(this.#cursor.x * scale, this.#cursor.y * scale, Math.max((this.brushSize / 2) * scale, 2 * ratio), 0, Math.PI * 2);
+    MaskCanvas.#strokeOutline(ctx, path, ratio);
+  }
+
+  /**
+   * Draw the outline of the shape that the user draws at this time.
+   * A polygon also shows a line to the pointer, and a circle on its first point. A click on the circle closes the polygon.
+   * @param {CanvasRenderingContext2D} ctx
+   */
+  #drawShape(ctx) {
+    const shape = this.#shape;
+    if (!shape || !this.mask) return;
+    const scale = this.display.width / this.mask.width;
+    // The paths are in mask pixels. The transform scales them, thus the line widths must be in mask pixels too.
+    const unit = (window.devicePixelRatio || 1) / scale;
+    ctx.save();
+    ctx.scale(scale, scale);
+    if (shape.tool === "polygon") {
+      const points = this.#cursor ? [...shape.points, this.#cursor] : shape.points;
+      const path = new Path2D();
+      points.forEach((p, i) => (i ? path.lineTo(p.x, p.y) : path.moveTo(p.x, p.y)));
+      MaskCanvas.#strokeOutline(ctx, path, unit);
+
+      const first = shape.points[0];
+      const marker = new Path2D();
+      marker.arc(first.x, first.y, 4 * unit, 0, Math.PI * 2);
+      if (this.#canClosePolygonAt(this.#cursor)) {
+        ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+        ctx.fill(marker);
+      }
+      MaskCanvas.#strokeOutline(ctx, marker, unit);
+    } else {
+      const path = MaskCanvas.#shapePath(shape);
+      if (path) MaskCanvas.#strokeOutline(ctx, path, unit);
+    }
+    ctx.restore();
+  }
+
+  /**
+   * Draw a path with a dark line and a light line, thus it shows on dark and on light images.
+   * @param {CanvasRenderingContext2D} ctx
+   * @param {Path2D} path
+   * @param {number} unit  The width of the light line, in the units of the current transform.
+   */
+  static #strokeOutline(ctx, path, unit) {
+    ctx.lineWidth = 3 * unit;
     ctx.strokeStyle = "rgba(0, 0, 0, 0.6)";
-    ctx.stroke();
-    ctx.lineWidth = ratio;
+    ctx.stroke(path);
+    ctx.lineWidth = unit;
     ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
-    ctx.stroke();
+    ctx.stroke(path);
   }
 
   /** Keep the mask before a change, so that undo can restore it. Call this before each change to the mask. */
@@ -515,6 +601,156 @@ export class MaskCanvas {
   }
 
   /**
+   * Close the polygon that the user draws at this time, and apply it to the mask.
+   * @returns {boolean}  False if there is no polygon, or if the polygon has less than 3 points. A polygon with less than 3 points stays open.
+   */
+  closePolygon() {
+    const shape = this.#shape;
+    if ((shape?.tool !== "polygon") || (shape.points.length < 3)) return false;
+    this.#shape = null;
+    this.#fillShape(shape);
+    this.requestDraw();
+    return true;
+  }
+
+  /**
+   * Remove the last point of the polygon that the user draws at this time. The removal of the only point cancels the polygon.
+   * @returns {boolean}  False if there is no polygon.
+   */
+  removePolygonPoint() {
+    const points = this.#shape?.points;
+    if (!points) return false;
+    points.pop();
+    if (!points.length) this.#shape = null;
+    this.requestDraw();
+    return true;
+  }
+
+  /**
+   * Stop the shape that the user draws at this time. The mask does not change.
+   * @returns {boolean}  False if there is no shape.
+   */
+  cancelShape() {
+    if (!this.#shape) return false;
+    this.#shape = null;
+    this.requestDraw();
+    return true;
+  }
+
+  /**
+   * Add the area of a shape to the mask or remove it from the mask, as one undo step.
+   * The edge of the shape is smooth (anti-aliased).
+   * @param {Shape} shape
+   * @returns {boolean}  False if the mask did not change.
+   */
+  #fillShape(shape) {
+    const path = MaskCanvas.#shapePath(shape);
+    if (!path) return false;
+    const { width, height } = this.mask;
+    const points = shape.points ?? [shape.start, shape.end];
+    const xs = points.map((p) => p.x);
+    const ys = points.map((p) => p.y);
+    const x0 = Math.max(0, Math.floor(Math.min(...xs)));
+    const y0 = Math.max(0, Math.floor(Math.min(...ys)));
+    const x1 = Math.min(width, Math.ceil(Math.max(...xs)));
+    const y1 = Math.min(height, Math.ceil(Math.max(...ys)));
+    if ((x1 <= x0) || (y1 <= y0)) return false;
+
+    // The canvas draws the shape with a smooth edge. A temporary canvas with only the area of the shape keeps the read small.
+    const w = x1 - x0;
+    const h = y1 - y0;
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    ctx.translate(-x0, -y0);
+    ctx.fill(path);
+    const shapePx = ctx.getImageData(0, 0, w, h).data;
+
+    // Change the pixels first, and make the undo step only if a pixel changed. The calculation is the same as the brush.
+    const before = this.#snapshot();
+    const px = this.#pixels.data;
+    const subtract = this.shapeMode === "subtract";
+    let changed = false;
+    for (let y = 0; y < h; y++) {
+      const row = ((y + y0) * width) + x0;
+      for (let x = 0; x < w; x++) {
+        const a = shapePx[(((y * w) + x) * 4) + 3];
+        if (!a) continue;
+        const o = (row + x) * 4;
+        const old = px[o + 3];
+        const value = subtract ? (((old * (255 - a)) + 127) / 255) | 0 : old + ((((a * (255 - old)) + 127) / 255) | 0);
+        if (value === old) continue;
+        px[o] = px[o + 1] = px[o + 2] = 255;
+        px[o + 3] = value;
+        changed = true;
+      }
+    }
+    if (!changed) return false;
+    this.#pushMask(before);
+    this.#putPixels({ x0, y0, x1, y1 });
+    return true;
+  }
+
+  /**
+   * Make the path of a shape, in mask pixels.
+   * @param {Shape} shape
+   * @returns {Path2D|null}  Null if the shape has no area.
+   */
+  static #shapePath(shape) {
+    const path = new Path2D();
+    if (shape.tool === "polygon") {
+      if (shape.points.length < 3) return null;
+      shape.points.forEach((p, i) => (i ? path.lineTo(p.x, p.y) : path.moveTo(p.x, p.y)));
+      path.closePath();
+      return path;
+    }
+    const { start, end } = shape;
+    const x = Math.min(start.x, end.x);
+    const y = Math.min(start.y, end.y);
+    const w = Math.abs(end.x - start.x);
+    const h = Math.abs(end.y - start.y);
+    if (!w || !h) return null;
+    if (shape.tool === "rect") path.rect(x, y, w, h);
+    else path.ellipse(x + (w / 2), y + (h / 2), w / 2, h / 2, 0, 0, Math.PI * 2);
+    return path;
+  }
+
+  /**
+   * Tell if a click at a point closes the polygon that the user draws at this time.
+   * @param {{x: number, y: number}|null} point  In mask pixels.
+   * @returns {boolean}
+   */
+  #canClosePolygonAt(point) {
+    const points = this.#shape?.points;
+    return !!point && (points?.length >= 3) && this.#isNear(point, points[0], POLYGON_CLOSE_DISTANCE);
+  }
+
+  /**
+   * Tell if two points are near on the screen. The distance limit stays the same at all display sizes.
+   * @param {{x: number, y: number}} a     In mask pixels.
+   * @param {{x: number, y: number}} b     In mask pixels.
+   * @param {number} distance              The limit, in screen pixels.
+   * @returns {boolean}
+   */
+  #isNear(a, b, distance) {
+    const limit = distance * (this.mask.width / this.display.getBoundingClientRect().width);
+    return Math.hypot(a.x - b.x, a.y - b.y) <= limit;
+  }
+
+  /**
+   * Add a point to the polygon, or start a new polygon. A click on the first point closes the polygon.
+   * @param {{x: number, y: number}} point  In mask pixels.
+   */
+  #addPolygonPoint(point) {
+    const shape = this.#shape;
+    if (!shape) this.#shape = { tool: "polygon", points: [point] };
+    else if (this.#canClosePolygonAt(point)) this.closePolygon();
+    else if (!this.#isNear(point, shape.points.at(-1), POLYGON_SAME_POINT_DISTANCE)) shape.points.push(point);
+    this.requestDraw();
+  }
+
+  /**
    * Copy the mask pixels into the mask canvas, and draw the display again.
    * @param {{x0: number, y0: number, x1: number, y1: number}} [rect]  Copy only this area. The default is the full mask.
    */
@@ -533,8 +769,19 @@ export class MaskCanvas {
       this.selectColor(point);
       return;
     }
-    // The capture keeps the stroke when the pointer goes out of the display.
+    if (this.tool === "polygon") {
+      this.#addPolygonPoint(point);
+      return;
+    }
+    // A second pointer must not start a second rectangle or ellipse during a drag.
+    if (this.#shape) return;
+    // The capture keeps the stroke or the drag when the pointer goes out of the display.
     this.display.setPointerCapture(event.pointerId);
+    if (SHAPE_TOOLS.includes(this.tool)) {
+      this.#shape = { tool: this.tool, pointerId: event.pointerId, start: point, end: point };
+      this.requestDraw();
+      return;
+    }
     this.#beginStroke(event.pointerId, point);
   }
 
@@ -549,11 +796,26 @@ export class MaskCanvas {
       for (const e of (events.length ? events : [event])) stroke.pending.push(this.toMaskPoint(e.clientX, e.clientY));
     }
     this.#cursor = this.toMaskPoint(event.clientX, event.clientY);
+    if (this.#shape?.pointerId === event.pointerId) this.#shape.end = this.#cursor;
     this.requestDraw();
   }
 
-  /** @param {PointerEvent} event */
+  /**
+   * End a stroke, or end the drag of a rectangle or an ellipse.
+   * Only "pointerup" applies the shape. A "pointercancel" or a lost pointer capture cancels it.
+   * @param {PointerEvent} event
+   */
   #onPointerEnd(event) {
+    const shape = this.#shape;
+    if (shape && (shape.pointerId === event.pointerId)) {
+      this.#shape = null;
+      if (event.type === "pointerup") {
+        shape.end = this.toMaskPoint(event.clientX, event.clientY);
+        this.#fillShape(shape);
+      }
+      this.requestDraw();
+      return;
+    }
     if (this.#stroke?.pointerId !== event.pointerId) return;
     this.#flushStroke();
     this.#stroke = null;
@@ -564,6 +826,16 @@ export class MaskCanvas {
     if (this.#stroke?.pointerId === event.pointerId) return;
     this.#cursor = null;
     this.requestDraw();
+  }
+
+  /**
+   * A double-click closes the polygon.
+   * If the first click of the double-click closed the polygon, the second click started a new polygon with one point. Remove that polygon.
+   * @param {MouseEvent} event
+   */
+  #onDoubleClick(event) {
+    if ((event.button !== 0) || (this.tool !== "polygon")) return;
+    if (!this.closePolygon() && (this.#shape?.points.length === 1)) this.cancelShape();
   }
 
   /**
