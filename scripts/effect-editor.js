@@ -81,8 +81,15 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
   /** The tools for the pointer, in the order of the tool buttons. */
   static TOOLS = [
     { id: "brush", icon: "fa-solid fa-paintbrush", label: "TILE_FX_PAINTER.Editor.Brush" },
-    { id: "eraser", icon: "fa-solid fa-eraser", label: "TILE_FX_PAINTER.Editor.Eraser" }
+    { id: "eraser", icon: "fa-solid fa-eraser", label: "TILE_FX_PAINTER.Editor.Eraser" },
+    { id: "select", icon: "fa-solid fa-wand-magic-sparkles", label: "TILE_FX_PAINTER.Editor.ColorSelect" }
   ];
+
+  /** The modes of the color select. */
+  static SELECT_MODES = {
+    add: "TILE_FX_PAINTER.Editor.SelectAdd",
+    subtract: "TILE_FX_PAINTER.Editor.SelectSubtract"
+  };
 
   /** The tile fields that change the area under the tile. A change to one of them makes a new capture necessary. */
   static CAPTURE_FIELDS = ["x", "y", "width", "height", "rotation"];
@@ -161,6 +168,12 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
       tools: EffectEditor.TOOLS.map((tool) => ({ ...tool, active: tool.id === this.mask.tool })),
       brushSize: this.mask.brushSize,
       brushHardness: Math.round(this.mask.brushHardness * 100),
+      showBrushOptions: this.#toolHasOptions(this.mask.tool, "brush eraser"),
+      showSelectOptions: this.#toolHasOptions(this.mask.tool, "select"),
+      selectTolerance: this.mask.selectTolerance,
+      selectMode: this.mask.selectMode,
+      selectModes: EffectEditor.SELECT_MODES,
+      selectContiguous: this.mask.selectContiguous,
       opacity: Math.round(this.mask.opacity * 100),
       showMask: this.mask.showMask,
       canUndo: this.mask.canUndo,
@@ -188,6 +201,16 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     el.querySelector("[name=brushHardness]").addEventListener("input", (event) => {
       this.mask.brushHardness = event.currentTarget.valueAsNumber / 100;
       event.currentTarget.nextElementSibling.textContent = `${event.currentTarget.value}%`;
+    });
+    el.querySelector("[name=selectTolerance]").addEventListener("input", (event) => {
+      this.mask.selectTolerance = event.currentTarget.valueAsNumber;
+      event.currentTarget.nextElementSibling.textContent = `${event.currentTarget.value}%`;
+    });
+    el.querySelector("[name=selectMode]").addEventListener("change", (event) => {
+      this.mask.selectMode = event.currentTarget.value;
+    });
+    el.querySelector("[name=selectContiguous]").addEventListener("change", (event) => {
+      this.mask.selectContiguous = event.currentTarget.checked;
     });
     el.querySelector("[name=opacity]").addEventListener("input", (event) => {
       this.mask.opacity = event.currentTarget.valueAsNumber / 100;
@@ -342,6 +365,16 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     }
   }
 
+  /**
+   * Tell if a tool uses a group of tool options.
+   * @param {string} tool
+   * @param {string} tools  The tools of the option group, with a space between them.
+   * @returns {boolean}
+   */
+  #toolHasOptions(tool, tools) {
+    return tools.split(" ").includes(tool);
+  }
+
   /** Show the values after an undo or redo, and enable or disable the undo, redo, and save buttons. */
   #updateToolbar() {
     const toolbar = this.element?.querySelector(".tile-fx-painter-editor-toolbar");
@@ -381,6 +414,11 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
       button.classList.toggle("active", active);
       button.setAttribute("aria-pressed", String(active));
     }
+    for (const group of this.element.querySelectorAll(".tile-fx-painter-editor-options")) {
+      group.hidden = !this.#toolHasOptions(this.mask.tool, group.dataset.tools);
+    }
+    // The brush circle shows only for the brush and the eraser.
+    this.mask.requestDraw();
   }
 
   /** @this {EffectEditor} */

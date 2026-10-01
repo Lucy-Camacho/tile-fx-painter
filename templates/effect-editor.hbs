@@ -34,16 +34,32 @@
       <i class="{{icon}}" inert></i>
     </button>
     {{/each}}
-    <label data-tooltip="TILE_FX_PAINTER.Editor.BrushSize">
-      <i class="fa-solid fa-circle" inert></i>
-      <input type="range" name="brushSize" min="1" max="512" step="1" value="{{brushSize}}">
-      <span class="tile-fx-painter-editor-value">{{brushSize}}</span>
-    </label>
-    <label data-tooltip="TILE_FX_PAINTER.Editor.BrushHardness">
-      <i class="fa-solid fa-bullseye" inert></i>
-      <input type="range" name="brushHardness" min="0" max="100" step="5" value="{{brushHardness}}">
-      <span class="tile-fx-painter-editor-value">{{brushHardness}}%</span>
-    </label>
+    <div class="tile-fx-painter-editor-options" data-tools="brush eraser" {{#unless showBrushOptions}}hidden{{/unless}}>
+      <label data-tooltip="TILE_FX_PAINTER.Editor.BrushSize">
+        <i class="fa-solid fa-circle" inert></i>
+        <input type="range" name="brushSize" min="1" max="512" step="1" value="{{brushSize}}">
+        <span class="tile-fx-painter-editor-value">{{brushSize}}</span>
+      </label>
+      <label data-tooltip="TILE_FX_PAINTER.Editor.BrushHardness">
+        <i class="fa-solid fa-bullseye" inert></i>
+        <input type="range" name="brushHardness" min="0" max="100" step="5" value="{{brushHardness}}">
+        <span class="tile-fx-painter-editor-value">{{brushHardness}}%</span>
+      </label>
+    </div>
+    <div class="tile-fx-painter-editor-options" data-tools="select" {{#unless showSelectOptions}}hidden{{/unless}}>
+      <label data-tooltip="TILE_FX_PAINTER.Editor.Tolerance">
+        <i class="fa-solid fa-palette" inert></i>
+        <input type="range" name="selectTolerance" min="0" max="100" step="1" value="{{selectTolerance}}">
+        <span class="tile-fx-painter-editor-value">{{selectTolerance}}%</span>
+      </label>
+      <select name="selectMode" data-tooltip="TILE_FX_PAINTER.Editor.SelectMode" aria-label="{{localize "TILE_FX_PAINTER.Editor.SelectMode"}}">
+        {{selectOptions selectModes selected=selectMode localize=true}}
+      </select>
+      <label class="checkbox" data-tooltip="TILE_FX_PAINTER.Editor.ContiguousHint">
+        <input type="checkbox" name="selectContiguous" {{checked selectContiguous}}>
+        {{localize "TILE_FX_PAINTER.Editor.Contiguous"}}
+      </label>
+    </div>
   </div>
   <div class="tile-fx-painter-editor-view">
     <p class="hint">{{localize "TILE_FX_PAINTER.Editor.Loading"}}</p>

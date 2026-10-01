@@ -36,6 +36,22 @@
   border-bottom: 1px solid var(--color-border);
 }
 
+/* Each tool shows only its option group. */
+.tile-fx-painter-editor-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tile-fx-painter-editor-options[hidden] {
+  display: none;
+}
+
+.tile-fx-painter-editor-tools select {
+  width: auto;
+}
+
 .tile-fx-painter-editor-toolbar label,
 .tile-fx-painter-editor-tools label {
   display: flex;

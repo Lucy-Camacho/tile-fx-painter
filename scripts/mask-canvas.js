@@ -4,6 +4,9 @@ const MAX_HISTORY = 30;
 /** The maximum memory in bytes for the undo steps. Each mask step of a large mask uses a lot of memory. */
 const MAX_HISTORY_BYTES = 256 * 1024 * 1024;
 
+/** The RGB distance between black and white. Tolerance 100% of the color select accepts this distance. */
+const MAX_COLOR_DISTANCE = Math.sqrt(3) * 255;
+
 /**
  * One undo step. It has a copy of the mask and its version, an opacity value, or a "Show Mask" value.
  * @typedef {{mask: ImageData, version: number}|{opacity: number}|{showMask: boolean}} HistoryEntry
@@ -51,10 +54,28 @@ export class MaskCanvas {
   }
 
   /**
-   * The tool for the pointer: "brush" or "eraser".
+   * The tool for the pointer: "brush", "eraser", or "select" (color select).
    * @type {string}
    */
   tool = "brush";
+
+  /**
+   * The color difference that the color select accepts, from 0 (the same color only) to 100 (all colors).
+   * @type {number}
+   */
+  selectTolerance = 15;
+
+  /**
+   * The color select adds the selected pixels to the mask ("add"), or removes them from the mask ("subtract").
+   * @type {string}
+   */
+  selectMode = "add";
+
+  /**
+   * The color select gets only the pixels that connect to the clicked pixel. If false, it gets all pixels with a near color.
+   * @type {boolean}
+   */
+  selectContiguous = true;
 
   /**
    * The diameter of the brush and the eraser, in mask pixels.
@@ -95,6 +116,12 @@ export class MaskCanvas {
    * @type {ImageData|null}
    */
   #pixels = null;
+
+  /**
+   * The pixels of the captured image. The color select reads them at its first click after each capture.
+   * @type {ImageData|null}
+   */
+  #basePixels = null;
 
   /**
    * The version of the mask pixels. Each change to the mask gets a new version, and undo and redo restore the old version.
@@ -187,6 +214,7 @@ export class MaskCanvas {
   setBase(base) {
     this.#stroke = null;
     this.base = base;
+    this.#basePixels = null;
     const old = this.mask;
     if (!old || (old.width !== base.width) || (old.height !== base.height)) {
       const { width, height } = base;
@@ -305,7 +333,8 @@ export class MaskCanvas {
    * @param {CanvasRenderingContext2D} ctx
    */
   #drawCursor(ctx) {
-    if (!this.#cursor || !this.mask) return;
+    // The color select uses only the crosshair pointer of the display.
+    if (!this.#cursor || !this.mask || (this.tool === "select")) return;
     const scale = this.display.width / this.mask.width;
     const ratio = window.devicePixelRatio || 1;
     const x = this.#cursor.x * scale;
@@ -385,6 +414,107 @@ export class MaskCanvas {
   }
 
   /**
+   * Select the pixels of the captured image that have a color near the color at a point.
+   * Add the selection to the mask or remove it from the mask, as one undo step.
+   * The selection ignores transparent pixels, for example the area outside the scene background.
+   * @param {{x: number, y: number}} point  In mask pixels.
+   * @returns {boolean}  False if the mask did not change.
+   */
+  selectColor(point) {
+    if (!this.base || !this.mask) return false;
+    const { width, height } = this.mask;
+    const x = Math.floor(point.x);
+    const y = Math.floor(point.y);
+    if ((x < 0) || (y < 0) || (x >= width) || (y >= height)) return false;
+
+    // One read for each capture. More reads can make the browser move the captured image from the GPU to the CPU.
+    this.#basePixels ??= this.base.getContext("2d").getImageData(0, 0, width, height);
+    const src = this.#basePixels.data;
+    const start = (y * width) + x;
+    const so = start * 4;
+    if (!src[so + 3]) return false;
+
+    const r = src[so];
+    const g = src[so + 1];
+    const b = src[so + 2];
+    const limit = (Math.clamp(this.selectTolerance, 0, 100) / 100) * MAX_COLOR_DISTANCE;
+    const limit2 = limit * limit;
+    const match = (i) => {
+      const o = i * 4;
+      if (!src[o + 3]) return false;
+      const dr = src[o] - r;
+      const dg = src[o + 1] - g;
+      const db = src[o + 2] - b;
+      return ((dr * dr) + (dg * dg) + (db * db)) <= limit2;
+    };
+
+    let selected;
+    if (this.selectContiguous) selected = MaskCanvas.#floodFill(width, height, start, match);
+    else {
+      selected = new Uint8Array(width * height);
+      for (let i = 0; i < selected.length; i++) if (match(i)) selected[i] = 1;
+    }
+
+    // Change the pixels first, and make the undo step only if a pixel changed. Then a click on a masked area in the
+    // "add" mode does not make an empty undo step or an unsaved change.
+    const before = this.#snapshot();
+    const px = this.#pixels.data;
+    const value = (this.selectMode === "subtract") ? 0 : 255;
+    let changed = false;
+    for (let i = 0; i < selected.length; i++) {
+      if (!selected[i]) continue;
+      const o = i * 4;
+      if (px[o + 3] === value) continue;
+      px[o] = px[o + 1] = px[o + 2] = 255;
+      px[o + 3] = value;
+      changed = true;
+    }
+    if (!changed) return false;
+    this.#pushMask(before);
+    this.#putPixels();
+    return true;
+  }
+
+  /**
+   * Find the pixels that connect to a start pixel through matching pixels. Diagonal pixels do not connect.
+   *
+   * This is a scanline fill. It fills a full row run at a time, and keeps only one stack entry for each run in the rows above
+   * and below. A stack entry for each pixel can need a very large stack on a large mask.
+   * @param {number} width
+   * @param {number} height
+   * @param {number} start               The index of the start pixel. It must match.
+   * @param {(i: number) => boolean} match  Tells if the pixel with an index is in the selection.
+   * @returns {Uint8Array}  1 for each selected pixel.
+   */
+  static #floodFill(width, height, start, match) {
+    const selected = new Uint8Array(width * height);
+    const stack = [start];
+    while (stack.length) {
+      const i = stack.pop();
+      // Two runs can add the same pixel to the stack.
+      if (selected[i]) continue;
+      const row = i - (i % width);
+      let left = i;
+      while ((left > row) && !selected[left - 1] && match(left - 1)) left--;
+      let right = i;
+      while ((right < row + width - 1) && !selected[right + 1] && match(right + 1)) right++;
+      selected.fill(1, left, right + 1);
+
+      for (const next of [row - width, row + width]) {
+        if ((next < 0) || (next >= selected.length)) continue;
+        const end = right - row + next;
+        let inRun = false;
+        for (let j = left - row + next; j <= end; j++) {
+          const ok = !selected[j] && match(j);
+          if (ok && !inRun) stack.push(j);
+          inRun = ok;
+        }
+      }
+    }
+    return selected;
+  }
+
+  /**
    * Copy the mask pixels into the mask canvas, and draw the display again.
    * @param {{x0: number, y0: number, x1: number, y1: number}} [rect]  Copy only this area. The default is the full mask.
    */
@@ -399,6 +529,10 @@ export class MaskCanvas {
     if ((event.button !== 0) || !this.base || !this.mask || this.#stroke) return;
     const point = this.toMaskPoint(event.clientX, event.clientY);
     this.#cursor = point;
+    if (this.tool === "select") {
+      this.selectColor(point);
+      return;
+    }
     // The capture keeps the stroke when the pointer goes out of the display.
     this.display.setPointerCapture(event.pointerId);
     this.#beginStroke(event.pointerId, point);
