@@ -8,6 +8,9 @@
       <input type="checkbox" name="showMask" {{checked showMask}}>
       {{localize "TILE_FX_PAINTER.Editor.ShowMask"}}
     </label>
+    <button type="button" data-action="resetView" data-tooltip="TILE_FX_PAINTER.Editor.ResetView" aria-label="{{localize "TILE_FX_PAINTER.Editor.ResetView"}}">
+      <i class="fa-solid fa-magnifying-glass-arrows-rotate" inert></i>
+    </button>
     <span class="tile-fx-painter-editor-spacer"></span>
     <button type="button" data-action="undoMask" data-tooltip="TILE_FX_PAINTER.Editor.Undo" aria-label="{{localize "TILE_FX_PAINTER.Editor.Undo"}}" {{disabled (not canUndo)}}>
       <i class="fa-solid fa-rotate-left" inert></i>

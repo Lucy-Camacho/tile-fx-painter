@@ -70,6 +70,7 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     },
     actions: {
       selectTool: EffectEditor.#onSelectTool,
+      resetView: EffectEditor.#onResetView,
       undoMask: EffectEditor.#onUndoMask,
       redoMask: EffectEditor.#onRedoMask,
       invertMask: EffectEditor.#onInvertMask,
@@ -78,14 +79,14 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     }
   };
 
-  /** The tools for the pointer, in the order of the tool buttons. */
+  /** The tools for the pointer, in the order of the tool buttons. The key selects the tool when the editor has focus. */
   static TOOLS = [
-    { id: "brush", icon: "fa-solid fa-paintbrush", label: "TILE_FX_PAINTER.Editor.Brush" },
-    { id: "eraser", icon: "fa-solid fa-eraser", label: "TILE_FX_PAINTER.Editor.Eraser" },
-    { id: "select", icon: "fa-solid fa-wand-magic-sparkles", label: "TILE_FX_PAINTER.Editor.ColorSelect" },
-    { id: "rect", icon: "fa-regular fa-square", label: "TILE_FX_PAINTER.Editor.Rectangle" },
-    { id: "ellipse", icon: "fa-regular fa-circle", label: "TILE_FX_PAINTER.Editor.Ellipse" },
-    { id: "polygon", icon: "fa-solid fa-draw-polygon", label: "TILE_FX_PAINTER.Editor.Polygon" }
+    { id: "brush", key: "b", icon: "fa-solid fa-paintbrush", label: "TILE_FX_PAINTER.Editor.Brush" },
+    { id: "eraser", key: "e", icon: "fa-solid fa-eraser", label: "TILE_FX_PAINTER.Editor.Eraser" },
+    { id: "select", key: "w", icon: "fa-solid fa-wand-magic-sparkles", label: "TILE_FX_PAINTER.Editor.ColorSelect" },
+    { id: "rect", key: "r", icon: "fa-regular fa-square", label: "TILE_FX_PAINTER.Editor.Rectangle" },
+    { id: "ellipse", key: "o", icon: "fa-regular fa-circle", label: "TILE_FX_PAINTER.Editor.Ellipse" },
+    { id: "polygon", key: "p", icon: "fa-solid fa-draw-polygon", label: "TILE_FX_PAINTER.Editor.Polygon" }
   ];
 
   /** The modes of the color select and the shapes. */
@@ -194,6 +195,11 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     // A tabindex lets a click in the window give it focus. Then the window gets the keyboard shortcuts.
     this.element.tabIndex = -1;
     this.element.addEventListener("keydown", this.#onKeyDown.bind(this));
+    this.element.addEventListener("keyup", this.#onKeyUp.bind(this));
+    // The editor does not get the Space "keyup" after it loses focus. Without this, the pan key stays down.
+    this.element.addEventListener("focusout", (event) => {
+      if (!this.element.contains(event.relatedTarget)) this.mask.setPanKey(false);
+    });
   }
 
   /** @override */
@@ -398,6 +404,7 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
   /**
    * Ctrl+Z = undo. Ctrl+Y or Ctrl+Shift+Z = redo. The Cmd key on macOS does the same as the Ctrl key.
    * During a shape: Escape = cancel the shape. Enter = close the polygon. Backspace = remove the last polygon point.
+   * The keys in `EffectEditor.TOOLS` select a tool. Hold Space and drag to pan.
    * @param {KeyboardEvent} event
    */
   #onKeyDown(event) {
@@ -407,9 +414,23 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!(event.ctrlKey || event.metaKey)) {
       // These keys do their usual action when there is no shape. For example, Escape closes the editor.
       let used = false;
-      if (key === "escape") used = this.mask.cancelShape();
+      // The editor takes Space also from a focused button, checkbox, or dropdown. Else Space clicks the control.
+      // The stop below also stops the Foundry pause, which uses Space. The browser repeats the keydown, thus all of them stop.
+      if ((event.code === "Space") && !event.target.matches?.("textarea, input:not([type=range], [type=checkbox])")) {
+        this.mask.setPanKey(true);
+        used = true;
+      }
+      else if (key === "escape") used = this.mask.cancelShape();
       else if (key === "enter") used = this.mask.closePolygon();
       else if (key === "backspace") used = this.mask.removePolygonPoint();
+      else if (!event.shiftKey && !event.target.matches?.("select, textarea, input:not([type=range], [type=checkbox])")) {
+        // A letter key in a dropdown selects an option. Thus the tool keys do not work there.
+        const tool = EffectEditor.TOOLS.find((t) => t.key === key);
+        if (tool) {
+          this.#setTool(tool.id);
+          used = true;
+        }
+      }
       if (!used) return;
     }
     else if ((key === "z") && !event.shiftKey) this.mask.undo();
@@ -421,19 +442,44 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /**
+   * Release the pan key.
+   * A button or a checkbox does its click on the Space "keyup", thus this event must also stop.
+   * @param {KeyboardEvent} event
+   */
+  #onKeyUp(event) {
+    if ((event.code !== "Space") || !this.mask.panKey) return;
+    this.mask.setPanKey(false);
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  /**
    * @this {EffectEditor}
    * @param {PointerEvent} event
    * @param {HTMLButtonElement} target
    */
   static #onSelectTool(event, target) {
-    this.mask.tool = target.dataset.tool;
+    this.#setTool(target.dataset.tool);
+  }
+
+  /** @this {EffectEditor} */
+  static #onResetView() {
+    this.mask.resetView();
+  }
+
+  /**
+   * Select a tool, and show its button as active and its option groups.
+   * @param {string} tool
+   */
+  #setTool(tool) {
+    this.mask.tool = tool;
     for (const button of this.element.querySelectorAll("[data-action=selectTool]")) {
-      const active = button === target;
+      const active = button.dataset.tool === tool;
       button.classList.toggle("active", active);
       button.setAttribute("aria-pressed", String(active));
     }
     for (const group of this.element.querySelectorAll(".tile-fx-painter-editor-options")) {
-      group.hidden = !this.#toolHasOptions(this.mask.tool, group.dataset.tools);
+      group.hidden = !this.#toolHasOptions(tool, group.dataset.tools);
     }
     // The brush circle shows only for the brush and the eraser. The tool change also removes a shape preview.
     this.mask.requestDraw();

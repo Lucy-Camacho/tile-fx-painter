@@ -19,6 +19,12 @@ const POLYGON_SAME_POINT_DISTANCE = 3;
 /** The tools that draw a shape. */
 const SHAPE_TOOLS = ["rect", "ellipse", "polygon"];
 
+/** The maximum zoom shows one mask pixel as a square of this size, in screen pixels. */
+const MAX_PIXEL_SIZE = 32;
+
+/** The zoom change for one unit of mouse wheel movement. One wheel step (100 units) changes the zoom by approximately 22%. */
+const ZOOM_SPEED = 0.002;
+
 /**
  * One undo step. It has a copy of the mask and its version, an opacity value, or a "Show Mask" value.
  * @typedef {{mask: ImageData, version: number}|{opacity: number}|{showMask: boolean}} HistoryEntry
@@ -72,6 +78,8 @@ export class MaskCanvas {
     this.display.addEventListener("lostpointercapture", end);
     this.display.addEventListener("pointerleave", this.#onPointerLeave.bind(this));
     this.display.addEventListener("dblclick", this.#onDoubleClick.bind(this));
+    // A passive listener cannot stop the page scroll.
+    this.display.addEventListener("wheel", this.#onWheel.bind(this), { passive: false });
   }
 
   /** @type {string} */
@@ -197,6 +205,33 @@ export class MaskCanvas {
   /** @type {number|null} */
   #frame = null;
 
+  /** The size of the view, in CSS pixels. The display fills the full view. */
+  #viewWidth = 0;
+
+  /** @type {number} */
+  #viewHeight = 0;
+
+  /** The scale (CSS pixels for each mask pixel) at zoom 1. Zoom 1 fits the full image in the view. */
+  #fitScale = 1;
+
+  /** The zoom, from 1 to `#maxZoom`. */
+  #zoom = 1;
+
+  /**
+   * The position of the top left corner of the mask on the display, in CSS pixels.
+   * @type {{x: number, y: number}}
+   */
+  #offset = { x: 0, y: 0 };
+
+  /**
+   * The pan that the user does at this time with the middle mouse button. The point is the last pointer position, in client pixels.
+   * @type {{pointerId: number, x: number, y: number}|null}
+   */
+  #pan = null;
+
+  /** The user holds the pan key (Space). A drag with the left mouse button then pans. */
+  #panKey = false;
+
   /** @type {Stroke|null} */
   #stroke = null;
 
@@ -221,6 +256,19 @@ export class MaskCanvas {
 
   get canRedo() {
     return this.#redo.length > 0;
+  }
+
+  /** The CSS pixels on the display for each mask pixel. */
+  get #scale() {
+    return this.#fitScale * this.#zoom;
+  }
+
+  /**
+   * The zoom that shows one mask pixel as a square of `MAX_PIXEL_SIZE` CSS pixels.
+   * A very small image can have larger pixels at zoom 1. Then the maximum zoom is 1.
+   */
+  get #maxZoom() {
+    return Math.max(1, MAX_PIXEL_SIZE / this.#fitScale);
   }
 
   /**
@@ -276,6 +324,9 @@ export class MaskCanvas {
       this.#undo.length = 0;
       this.#redo.length = 0;
       this.onHistoryChange?.();
+
+      // The pan position is in mask pixels of the old size.
+      this.#zoom = 1;
     }
     this.#fit();
   }
@@ -337,11 +388,85 @@ export class MaskCanvas {
    * @returns {{x: number, y: number}}
    */
   toMaskPoint(clientX, clientY) {
-    const rect = this.display.getBoundingClientRect();
+    const point = this.#toViewPoint(clientX, clientY);
+    const scale = this.#scale;
     return {
-      x: (clientX - rect.left) * (this.mask.width / rect.width),
-      y: (clientY - rect.top) * (this.mask.height / rect.height)
+      x: (point.x - this.#offset.x) / scale,
+      y: (point.y - this.#offset.y) / scale
     };
+  }
+
+  /**
+   * Change pointer coordinates to CSS pixels on the display.
+   * Foundry can scale a window with a CSS transform. Then the client pixels are not the same as the CSS pixels of the view.
+   * @param {number} clientX
+   * @param {number} clientY
+   * @returns {{x: number, y: number}}
+   */
+  #toViewPoint(clientX, clientY) {
+    const rect = this.display.getBoundingClientRect();
+    const ratio = this.#viewWidth / rect.width;
+    return { x: (clientX - rect.left) * ratio, y: (clientY - rect.top) * ratio };
+  }
+
+  /**
+   * Zoom the view, and keep the mask point under the pointer at the same position.
+   * @param {number} factor   The zoom multiplier. A value more than 1 zooms in.
+   * @param {number} clientX
+   * @param {number} clientY
+   */
+  zoomAt(factor, clientX, clientY) {
+    if (!this.base || !this.#viewWidth) return;
+    const zoom = Math.clamp(this.#zoom * factor, 1, this.#maxZoom);
+    if (zoom === this.#zoom) return;
+    const point = this.toMaskPoint(clientX, clientY);
+    const view = this.#toViewPoint(clientX, clientY);
+    this.#zoom = zoom;
+    this.#offset.x = view.x - (point.x * this.#scale);
+    this.#offset.y = view.y - (point.y * this.#scale);
+    this.#clampOffset();
+    this.#cursor = this.toMaskPoint(clientX, clientY);
+    this.requestDraw();
+  }
+
+  /** The user holds the pan key. */
+  get panKey() {
+    return this.#panKey;
+  }
+
+  /**
+   * Tell the mask that the user pushed or released the pan key (Space).
+   * A release during a drag does not stop the pan. The pan stops when the mouse button goes up.
+   * @param {boolean} down
+   */
+  setPanKey(down) {
+    if (down === this.#panKey) return;
+    this.#panKey = down;
+    this.display.classList.toggle("pan-ready", down);
+    // The brush circle does not show while the pan key is down.
+    this.requestDraw();
+  }
+
+  /** Set the zoom back to 1 and remove the pan. The full image then fits in the view, at the center. */
+  resetView() {
+    if (!this.base) return;
+    this.#zoom = 1;
+    this.#clampOffset();
+    this.requestDraw();
+  }
+
+  /**
+   * Keep the image in the view.
+   * On an axis where the image is smaller than the view, the image is at the center.
+   * On an axis where the image is larger than the view, the image fills the view and shows no empty area.
+   */
+  #clampOffset() {
+    const scale = this.#scale;
+    const axes = [["x", this.#viewWidth, this.base.width], ["y", this.#viewHeight, this.base.height]];
+    for (const [axis, view, size] of axes) {
+      const length = size * scale;
+      this.#offset[axis] = (length <= view) ? (view - length) / 2 : Math.clamp(this.#offset[axis], view - length, 0);
+    }
   }
 
   /** Draw the display in the next animation frame. More requests in the same frame cause only one draw. */
@@ -359,47 +484,51 @@ export class MaskCanvas {
     if (this.#frame !== null) cancelAnimationFrame(this.#frame);
     this.#frame = null;
 
-    const { width, height } = this.display;
     const ctx = this.display.getContext("2d");
-    ctx.clearRect(0, 0, width, height);
-    if (!this.base) return;
-    ctx.drawImage(this.base, 0, 0, width, height);
+    ctx.resetTransform();
+    ctx.clearRect(0, 0, this.display.width, this.display.height);
+    if (!this.base || !this.#viewWidth) return;
+
+    // All the drawings below are in mask pixels. The transform moves them to the zoom and pan position.
+    const ratio = this.display.width / this.#viewWidth;
+    const scale = this.#scale * ratio;
+    ctx.setTransform(scale, 0, 0, scale, this.#offset.x * ratio, this.#offset.y * ratio);
+    // At a high zoom, show each mask pixel as a sharp square, so that the user can see the exact mask edge.
+    ctx.imageSmoothingEnabled = scale < 2;
+    ctx.drawImage(this.base, 0, 0);
     if (this.showMask && this.mask) {
       ctx.globalAlpha = this.opacity;
-      ctx.drawImage(this.mask, 0, 0, width, height);
+      ctx.drawImage(this.mask, 0, 0);
       ctx.globalAlpha = 1;
     }
-    this.#drawShape(ctx);
-    this.#drawCursor(ctx);
+    // The line widths must be in mask pixels too. One unit is one CSS pixel.
+    const unit = 1 / this.#scale;
+    this.#drawShape(ctx, unit);
+    this.#drawCursor(ctx, unit);
   }
 
   /**
    * Draw the brush circle at the pointer position.
-   * @param {CanvasRenderingContext2D} ctx
+   * @param {CanvasRenderingContext2D} ctx  The transform of the context must change mask pixels to display pixels.
+   * @param {number} unit                   One CSS pixel, in mask pixels.
    */
-  #drawCursor(ctx) {
+  #drawCursor(ctx, unit) {
     // The other tools use only the crosshair pointer of the display.
-    if (!this.#cursor || !this.mask || !["brush", "eraser"].includes(this.tool)) return;
-    const scale = this.display.width / this.mask.width;
-    const ratio = window.devicePixelRatio || 1;
+    if (!this.#cursor || this.#pan || this.#panKey || !this.mask || !["brush", "eraser"].includes(this.tool)) return;
     const path = new Path2D();
-    path.arc(this.#cursor.x * scale, this.#cursor.y * scale, Math.max((this.brushSize / 2) * scale, 2 * ratio), 0, Math.PI * 2);
-    MaskCanvas.#strokeOutline(ctx, path, ratio);
+    path.arc(this.#cursor.x, this.#cursor.y, Math.max(this.brushSize / 2, 2 * unit), 0, Math.PI * 2);
+    MaskCanvas.#strokeOutline(ctx, path, unit);
   }
 
   /**
    * Draw the outline of the shape that the user draws at this time.
    * A polygon also shows a line to the pointer, and a circle on its first point. A click on the circle closes the polygon.
-   * @param {CanvasRenderingContext2D} ctx
+   * @param {CanvasRenderingContext2D} ctx  The transform of the context must change mask pixels to display pixels.
+   * @param {number} unit                   One CSS pixel, in mask pixels.
    */
-  #drawShape(ctx) {
+  #drawShape(ctx, unit) {
     const shape = this.#shape;
     if (!shape || !this.mask) return;
-    const scale = this.display.width / this.mask.width;
-    // The paths are in mask pixels. The transform scales them, thus the line widths must be in mask pixels too.
-    const unit = (window.devicePixelRatio || 1) / scale;
-    ctx.save();
-    ctx.scale(scale, scale);
     if (shape.tool === "polygon") {
       const points = this.#cursor ? [...shape.points, this.#cursor] : shape.points;
       const path = new Path2D();
@@ -418,7 +547,6 @@ export class MaskCanvas {
       const path = MaskCanvas.#shapePath(shape);
       if (path) MaskCanvas.#strokeOutline(ctx, path, unit);
     }
-    ctx.restore();
   }
 
   /**
@@ -734,8 +862,8 @@ export class MaskCanvas {
    * @returns {boolean}
    */
   #isNear(a, b, distance) {
-    const limit = distance * (this.mask.width / this.display.getBoundingClientRect().width);
-    return Math.hypot(a.x - b.x, a.y - b.y) <= limit;
+    const screenScale = this.#scale * (this.display.getBoundingClientRect().width / this.#viewWidth);
+    return Math.hypot(a.x - b.x, a.y - b.y) <= distance / screenScale;
   }
 
   /**
@@ -762,7 +890,12 @@ export class MaskCanvas {
 
   /** @param {PointerEvent} event */
   #onPointerDown(event) {
-    if ((event.button !== 0) || !this.base || !this.mask || this.#stroke) return;
+    if (!this.base || !this.mask) return;
+    if ((event.button === 1) || ((event.button === 0) && this.#panKey)) {
+      this.#beginPan(event);
+      return;
+    }
+    if ((event.button !== 0) || this.#stroke || this.#pan) return;
     const point = this.toMaskPoint(event.clientX, event.clientY);
     this.#cursor = point;
     if (this.tool === "select") {
@@ -788,6 +921,16 @@ export class MaskCanvas {
   /** @param {PointerEvent} event */
   #onPointerMove(event) {
     if (!this.mask) return;
+    const pan = this.#pan;
+    if (pan?.pointerId === event.pointerId) {
+      const from = this.#toViewPoint(pan.x, pan.y);
+      const to = this.#toViewPoint(event.clientX, event.clientY);
+      this.#offset.x += to.x - from.x;
+      this.#offset.y += to.y - from.y;
+      this.#clampOffset();
+      pan.x = event.clientX;
+      pan.y = event.clientY;
+    }
     const stroke = this.#stroke;
     if (stroke && (event.pointerId === stroke.pointerId)) {
       // The browser can join many pointer moves into one event. Keep all of them, so that curves stay smooth.
@@ -801,11 +944,17 @@ export class MaskCanvas {
   }
 
   /**
-   * End a stroke, or end the drag of a rectangle or an ellipse.
+   * End a stroke, a pan, or the drag of a rectangle or an ellipse.
    * Only "pointerup" applies the shape. A "pointercancel" or a lost pointer capture cancels it.
    * @param {PointerEvent} event
    */
   #onPointerEnd(event) {
+    if (this.#pan?.pointerId === event.pointerId) {
+      this.#pan = null;
+      this.display.classList.remove("panning");
+      this.requestDraw();
+      return;
+    }
     const shape = this.#shape;
     if (shape && (shape.pointerId === event.pointerId)) {
       this.#shape = null;
@@ -836,6 +985,34 @@ export class MaskCanvas {
   #onDoubleClick(event) {
     if ((event.button !== 0) || (this.tool !== "polygon")) return;
     if (!this.closePolygon() && (this.#shape?.points.length === 1)) this.cancelShape();
+  }
+
+  /**
+   * Start a pan with the middle mouse button, or with the left mouse button while the pan key is down.
+   * @param {PointerEvent} event
+   */
+  #beginPan(event) {
+    // Stop the auto-scroll of the browser, which starts with the middle button.
+    event.preventDefault();
+    if (this.#pan) return;
+    this.display.setPointerCapture(event.pointerId);
+    this.#pan = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+    this.display.classList.add("panning");
+    this.requestDraw();
+  }
+
+  /**
+   * Zoom with the mouse wheel. The mask point under the pointer stays under the pointer.
+   * @param {WheelEvent} event
+   */
+  #onWheel(event) {
+    if (!this.base || !this.#viewWidth) return;
+    event.preventDefault();
+    // The delta can be in lines or in pages, not in pixels.
+    let delta = event.deltaY;
+    if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) delta *= 16;
+    else if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) delta *= this.#viewHeight;
+    this.zoomAt(Math.exp(-delta * ZOOM_SPEED), event.clientX, event.clientY);
   }
 
   /**
@@ -978,23 +1155,32 @@ export class MaskCanvas {
   }
 
   /**
-   * Make the display fill the view as much as possible, with the aspect ratio of the captured image.
+   * Give the display the size of the view, and calculate the scale at zoom 1 again.
    * The display has the pixel density of the screen, thus the image stays sharp.
+   * The zoom stays, and the mask point at the center of the view stays at the center.
    */
   #fit() {
     if (!this.base || !this.#view) return;
     const { clientWidth, clientHeight } = this.#view;
     if (!clientWidth || !clientHeight) return;
 
-    const scale = Math.min(clientWidth / this.base.width, clientHeight / this.base.height);
-    const width = Math.max(1, Math.floor(this.base.width * scale));
-    const height = Math.max(1, Math.floor(this.base.height * scale));
-    this.display.style.width = `${width}px`;
-    this.display.style.height = `${height}px`;
+    // The first fit has no center point. The clamp below then puts the image at the center.
+    const center = this.#viewWidth ? {
+      x: ((this.#viewWidth / 2) - this.#offset.x) / this.#scale,
+      y: ((this.#viewHeight / 2) - this.#offset.y) / this.#scale
+    } : { x: 0, y: 0 };
+
+    this.#viewWidth = clientWidth;
+    this.#viewHeight = clientHeight;
+    this.#fitScale = Math.min(clientWidth / this.base.width, clientHeight / this.base.height);
+    this.#zoom = Math.min(this.#zoom, this.#maxZoom);
+    this.#offset.x = (clientWidth / 2) - (center.x * this.#scale);
+    this.#offset.y = (clientHeight / 2) - (center.y * this.#scale);
+    this.#clampOffset();
 
     const ratio = window.devicePixelRatio || 1;
-    this.display.width = Math.round(width * ratio);
-    this.display.height = Math.round(height * ratio);
+    this.display.width = Math.round(clientWidth * ratio);
+    this.display.height = Math.round(clientHeight * ratio);
 
     // A size change clears the canvas. Draw now, so that the display does not flash.
     this.draw();

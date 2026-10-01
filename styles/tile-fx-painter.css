@@ -52,8 +52,10 @@
   width: auto;
 }
 
+/* Foundry gives "label.checkbox" the value "flex: auto". Then the label grows and pushes the next control away. */
 .tile-fx-painter-editor-toolbar label,
 .tile-fx-painter-editor-tools label {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 0.25rem;
@@ -95,9 +97,22 @@
   overflow: hidden;
 }
 
-/* "touch-action: none" stops a pen or a finger from scrolling the page during a stroke. */
+/* The display fills the full view. The zoom and the pan move the image inside the display.
+   "touch-action: none" stops a pen or a finger from scrolling the page during a stroke. */
 .tile-fx-painter-editor-view .tile-fx-painter-display {
-  flex: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   cursor: crosshair;
   touch-action: none;
+}
+
+.tile-fx-painter-editor-view .tile-fx-painter-display.pan-ready {
+  cursor: grab;
+}
+
+/* This rule comes after "pan-ready", thus it wins during a Space drag. */
+.tile-fx-painter-editor-view .tile-fx-painter-display.panning {
+  cursor: grabbing;
 }
