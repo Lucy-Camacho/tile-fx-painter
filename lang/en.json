@@ -18,13 +18,25 @@
         "Choices": {
           "None": "None",
           "Glow": "Glow",
-          "Ripple": "Ripple",
-          "Dissolve": "Dissolve"
+          "Metallic": "Metallic",
+          "Iridescent": "Iridescent Sheen"
         }
       },
       "Intensity": {
         "Label": "Effect Intensity",
         "Hint": "The strength of the shader effect."
+      },
+      "Color": {
+        "Label": "Effect Color",
+        "Hint": "The color of the effect. An empty value gives the default color of the selected effect."
+      },
+      "Speed": {
+        "Label": "Animation Speed",
+        "Hint": "The speed of the effect animation. The value 0 stops the animation."
+      },
+      "Scale": {
+        "Label": "Pattern Scale",
+        "Hint": "The size of the effect pattern. At 1, one pattern unit is one grid square."
       },
       "OpenEditor": {
         "Label": "Open Effect Editor"

@@ -1,15 +1,13 @@
 import { MODULE_ID } from "./main.js";
 import { EffectEditor } from "./effect-editor.js";
+import { EFFECTS, getEffectSettings } from "./effects.js";
 
 const TAB_ID = MODULE_ID;
 const TEMPLATE = `modules/${MODULE_ID}/templates/tile-config-tab.hbs`;
 
-// Placeholder entries for the shader dropdown. No shader code exists yet.
 const SHADER_CHOICES = {
   none: "TILE_FX_PAINTER.Config.Shader.Choices.None",
-  glow: "TILE_FX_PAINTER.Config.Shader.Choices.Glow",
-  ripple: "TILE_FX_PAINTER.Config.Shader.Choices.Ripple",
-  dissolve: "TILE_FX_PAINTER.Config.Shader.Choices.Dissolve"
+  ...Object.fromEntries(Object.entries(EFFECTS).map(([id, effect]) => [id, effect.label]))
 };
 
 /**
@@ -24,17 +22,26 @@ Hooks.on("renderTileConfig", async (app, element) => {
 
   const idPrefix = `${app.id}-${MODULE_ID}`;
   const flags = app.document.flags[MODULE_ID] ?? {};
+  const settings = getEffectSettings(app.document);
   const html = await foundry.applications.handlebars.renderTemplate(TEMPLATE, {
     moduleId: MODULE_ID,
     tabId: TAB_ID,
     group,
     inputId: `${idPrefix}-enabled`,
-    enabled: flags.enabled ?? false,
+    enabled: settings.enabled,
     shaderId: `${idPrefix}-shader`,
     shaderChoices: SHADER_CHOICES,
-    shader: flags.shader ?? "none",
+    shader: settings.effect,
     intensityId: `${idPrefix}-intensity`,
-    intensity: flags.intensity ?? 1,
+    intensity: settings.intensity,
+    // Show the saved value, not the default. An empty field keeps the default color, also after an effect change.
+    colorId: `${idPrefix}-color`,
+    color: flags.color ?? "",
+    colorPlaceholder: settings.color ?? "",
+    speedId: `${idPrefix}-speed`,
+    speed: settings.speed,
+    scaleId: `${idPrefix}-scale`,
+    scale: settings.scale,
     // The editor saves the mask as an uploaded file. Users who cannot upload cannot use it.
     canOpenEditor: game.user.can("FILES_UPLOAD")
   });
