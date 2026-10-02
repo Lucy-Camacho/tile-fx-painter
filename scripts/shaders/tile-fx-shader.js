@@ -44,12 +44,20 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
     uniform float hasBase;
     uniform vec2 baseTexelSize;
 
+    // Change a mask UV to a UV of the background texture.
+    // Gives false outside the scene rectangle, or when the scene has no background image.
+    bool baseUv(vec2 maskUv, out vec2 uv) {
+      vec2 scenePos = (baseMatrix * vec3(maskUv, 1.0)).xy;
+      uv = baseFrame.xy + (scenePos * baseFrame.zw);
+      return (hasBase > 0.5) && all(greaterThanEqual(scenePos, vec2(0.0))) && all(lessThanEqual(scenePos, vec2(1.0)));
+    }
+
     // The premultiplied scene background color under a mask UV.
     // vec4(0.0) outside the scene rectangle, or when the scene has no background image.
     vec4 sampleBase(vec2 maskUv) {
-      vec2 scenePos = (baseMatrix * vec3(maskUv, 1.0)).xy;
-      if ( (hasBase < 0.5) || any(lessThan(scenePos, vec2(0.0))) || any(greaterThan(scenePos, vec2(1.0))) ) return vec4(0.0);
-      return texture(baseSampler, baseFrame.xy + (scenePos * baseFrame.zw));
+      vec2 uv;
+      if ( !baseUv(maskUv, uv) ) return vec4(0.0);
+      return texture(baseSampler, uv);
     }
 
     // The effect strength at this pixel: the mask alpha times the intensity. It can be more than 1.
