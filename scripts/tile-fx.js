@@ -2,10 +2,11 @@ import { MODULE_ID } from "./main.js";
 import { getEffectSettings } from "./effects.js";
 import { TileFxMesh } from "./tile-fx-mesh.js";
 import { TileFxShader } from "./shaders/tile-fx-shader.js";
+import { GlowShader } from "./shaders/glow.js";
 
-/** The shader class of each effect. In this step, all effects use the test shader. */
+/** The shader class of each effect. Metallic and Iridescent Sheen use the test shader until their steps. */
 const SHADERS = {
-  glow: TileFxShader,
+  glow: GlowShader,
   metallic: TileFxShader,
   iridescent: TileFxShader
 };
