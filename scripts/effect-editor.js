@@ -172,6 +172,7 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
       tools: EffectEditor.TOOLS.map((tool) => ({ ...tool, active: tool.id === this.mask.tool })),
       brushSize: this.mask.brushSize,
       brushHardness: Math.round(this.mask.brushHardness * 100),
+      brushOpacity: Math.round(this.mask.brushOpacity * 100),
       showBrushOptions: this.#toolHasOptions(this.mask.tool, "brush eraser"),
       showSelectOptions: this.#toolHasOptions(this.mask.tool, "select"),
       selectTolerance: this.mask.selectTolerance,
@@ -181,7 +182,6 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
       showShapeOptions: this.#toolHasOptions(this.mask.tool, "rect ellipse polygon"),
       showPolygonHint: this.#toolHasOptions(this.mask.tool, "polygon"),
       shapeMode: this.mask.shapeMode,
-      opacity: Math.round(this.mask.opacity * 100),
       showMask: this.mask.showMask,
       canUndo: this.mask.canUndo,
       canRedo: this.mask.canRedo,
@@ -214,6 +214,10 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
       this.mask.brushHardness = event.currentTarget.valueAsNumber / 100;
       event.currentTarget.nextElementSibling.textContent = `${event.currentTarget.value}%`;
     });
+    el.querySelector("[name=brushOpacity]").addEventListener("input", (event) => {
+      this.mask.brushOpacity = event.currentTarget.valueAsNumber / 100;
+      event.currentTarget.nextElementSibling.textContent = `${event.currentTarget.value}%`;
+    });
     el.querySelector("[name=selectTolerance]").addEventListener("input", (event) => {
       this.mask.selectTolerance = event.currentTarget.valueAsNumber;
       event.currentTarget.nextElementSibling.textContent = `${event.currentTarget.value}%`;
@@ -227,12 +231,6 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     el.querySelector("[name=shapeMode]").addEventListener("change", (event) => {
       this.mask.shapeMode = event.currentTarget.value;
     });
-    el.querySelector("[name=opacity]").addEventListener("input", (event) => {
-      this.mask.opacity = event.currentTarget.valueAsNumber / 100;
-      this.mask.requestDraw();
-    });
-    // "change" occurs at the end of a drag. Thus one drag gives one undo step.
-    el.querySelector("[name=opacity]").addEventListener("change", () => this.mask.commitOpacity());
     el.querySelector("[name=showMask]").addEventListener("change", (event) => {
       this.mask.setShowMask(event.currentTarget.checked);
     });
@@ -394,7 +392,6 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
   #updateToolbar() {
     const toolbar = this.element?.querySelector(".tile-fx-painter-editor-toolbar");
     if (!toolbar) return;
-    toolbar.querySelector("[name=opacity]").value = Math.round(this.mask.opacity * 100);
     toolbar.querySelector("[name=showMask]").checked = this.mask.showMask;
     toolbar.querySelector("[data-action=undoMask]").disabled = !this.mask.canUndo;
     toolbar.querySelector("[data-action=redoMask]").disabled = !this.mask.canRedo;

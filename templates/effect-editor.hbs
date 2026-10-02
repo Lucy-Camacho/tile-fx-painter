@@ -1,9 +1,5 @@
 <div class="tile-fx-painter-editor">
   <div class="tile-fx-painter-editor-toolbar">
-    <label class="tile-fx-painter-editor-opacity" data-tooltip="TILE_FX_PAINTER.Editor.Opacity">
-      <i class="fa-solid fa-droplet-percent" inert></i>
-      <input type="range" name="opacity" min="0" max="100" step="5" value="{{opacity}}">
-    </label>
     <label class="checkbox">
       <input type="checkbox" name="showMask" {{checked showMask}}>
       {{localize "TILE_FX_PAINTER.Editor.ShowMask"}}
@@ -47,6 +43,11 @@
         <i class="fa-solid fa-bullseye" inert></i>
         <input type="range" name="brushHardness" min="0" max="100" step="5" value="{{brushHardness}}">
         <span class="tile-fx-painter-editor-value">{{brushHardness}}%</span>
+      </label>
+      <label data-tooltip="TILE_FX_PAINTER.Editor.BrushOpacity">
+        <i class="fa-solid fa-droplet-percent" inert></i>
+        <input type="range" name="brushOpacity" min="5" max="100" step="5" value="{{brushOpacity}}">
+        <span class="tile-fx-painter-editor-value">{{brushOpacity}}%</span>
       </label>
     </div>
     <div class="tile-fx-painter-editor-options" data-tools="select" {{#unless showSelectOptions}}hidden{{/unless}}>

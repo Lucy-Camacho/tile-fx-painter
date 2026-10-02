@@ -25,9 +25,21 @@ const MAX_PIXEL_SIZE = 32;
 /** The zoom change for one unit of mouse wheel movement. One wheel step (100 units) changes the zoom by approximately 22%. */
 const ZOOM_SPEED = 0.002;
 
+/** The opacity of the white mask over the captured image in the view. The mask file always has the full alpha values. */
+const MASK_VIEW_OPACITY = 0.75;
+
+/** The brush profile has this number of samples for each mask pixel of distance from the brush center. */
+const PROFILE_SAMPLES = 4;
+
 /**
- * One undo step. It has a copy of the mask and its version, an opacity value, or a "Show Mask" value.
- * @typedef {{mask: ImageData, version: number}|{opacity: number}|{showMask: boolean}} HistoryEntry
+ * The steepness of the feathered edge of the brush. A larger value makes a thinner visible edge with a longer faint tail.
+ * At 4, the alpha at the middle of the feathered edge is approximately 36%.
+ */
+const FEATHER_FALLOFF = 4;
+
+/**
+ * One undo step. It has a copy of the mask and its version, or a "Show Mask" value.
+ * @typedef {{mask: ImageData, version: number}|{showMask: boolean}} HistoryEntry
  */
 
 /**
@@ -36,7 +48,7 @@ const ZOOM_SPEED = 0.002;
  * @property {number} pointerId
  * @property {boolean} erase                The stroke removes the mask.
  * @property {number} radius                In mask pixels.
- * @property {number} hardness              From 0 (soft edge) to 1 (hard edge).
+ * @property {Uint8Array} profile           The stroke alpha (0 to 255) at each distance from the brush center. See `#brushProfile`.
  * @property {Uint8ClampedArray} before     The mask pixels before the stroke.
  * @property {{x: number, y: number}} last  The last painted point of the stroke, in mask pixels.
  * @property {{x: number, y: number}[]} pending  The pointer points that the stroke did not paint yet.
@@ -59,12 +71,9 @@ const ZOOM_SPEED = 0.002;
 export class MaskCanvas {
   /**
    * @param {object} [options]
-   * @param {number} [options.opacity]   The opacity of the mask in the view, from 0 to 1.
    * @param {boolean} [options.showMask] Show the mask in the view.
    */
-  constructor({ opacity = 0.5, showMask = true } = {}) {
-    this.opacity = opacity;
-    this.#savedOpacity = opacity;
+  constructor({ showMask = true } = {}) {
     this.showMask = showMask;
     this.display = document.createElement("canvas");
     this.display.classList.add("tile-fx-painter-display");
@@ -132,10 +141,18 @@ export class MaskCanvas {
   brushSize = 64;
 
   /**
-   * The hardness of the brush and the eraser edge, from 0 (soft) to 1 (hard).
+   * The part of the brush and eraser radius that has full alpha, from 0 to 1. The remaining outer part has a feathered edge.
+   * At 0, the feathered edge starts at the brush center. At 1, the edge is hard.
    * @type {number}
    */
   brushHardness = 0.8;
+
+  /**
+   * The maximum alpha of the brush and the eraser, from 0 to 1.
+   * One stroke does not go above this value where it crosses itself. A second stroke on the same area adds to the first.
+   * @type {number}
+   */
+  brushOpacity = 1;
 
   /**
    * The captured image under the tile.
@@ -189,12 +206,6 @@ export class MaskCanvas {
 
   /** @type {HistoryEntry[]} */
   #redo = [];
-
-  /**
-   * The opacity at the last undo entry. The slider changes `opacity` during a drag, thus this value gives the opacity before the drag.
-   * @type {number}
-   */
-  #savedOpacity;
 
   /** @type {HTMLElement|null} */
   #view = null;
@@ -280,7 +291,7 @@ export class MaskCanvas {
   }
 
   /**
-   * The mask has changes after the last save or load. Opacity and "Show Mask" changes are not mask changes.
+   * The mask has changes after the last save or load. "Show Mask" changes are not mask changes.
    * @type {boolean}
    */
   get isDirty() {
@@ -497,7 +508,7 @@ export class MaskCanvas {
     ctx.imageSmoothingEnabled = scale < 2;
     ctx.drawImage(this.base, 0, 0);
     if (this.showMask && this.mask) {
-      ctx.globalAlpha = this.opacity;
+      ctx.globalAlpha = MASK_VIEW_OPACITY;
       ctx.drawImage(this.mask, 0, 0);
       ctx.globalAlpha = 1;
     }
@@ -567,15 +578,6 @@ export class MaskCanvas {
   /** Keep the mask before a change, so that undo can restore it. Call this before each change to the mask. */
   pushUndo() {
     this.#pushMask(this.#snapshot());
-  }
-
-  /**
-   * Make one undo step for the opacity changes since the last step.
-   * The slider sets `opacity` for each small move. Call this function at the end of the move.
-   */
-  commitOpacity() {
-    if (this.opacity === this.#savedOpacity) return;
-    this.#push({ opacity: this.#savedOpacity });
   }
 
   /**
@@ -1029,11 +1031,12 @@ export class MaskCanvas {
     if (this.#strokeAlpha?.length === size) this.#strokeAlpha.fill(0);
     else this.#strokeAlpha = new Uint8Array(size);
 
+    const radius = Math.max(this.brushSize, 1) / 2;
     this.#stroke = {
       pointerId,
       erase: this.tool === "eraser",
-      radius: Math.max(this.brushSize, 1) / 2,
-      hardness: Math.clamp(this.brushHardness, 0, 1),
+      radius,
+      profile: MaskCanvas.#brushProfile(radius + 0.5, this.brushHardness, this.brushOpacity),
       before: before.data,
       last: point,
       pending: [],
@@ -1096,7 +1099,7 @@ export class MaskCanvas {
    */
   #paintCapsule(a, b) {
     const stroke = this.#stroke;
-    const { radius, hardness, erase, before } = stroke;
+    const { radius, profile, erase, before } = stroke;
     const alpha = this.#strokeAlpha;
     const px = this.#pixels.data;
     const { width, height } = this.mask;
@@ -1113,8 +1116,6 @@ export class MaskCanvas {
     const length2 = (dx * dx) + (dy * dy);
     const invLength2 = length2 ? 1 / length2 : 0;
     const reach2 = reach * reach;
-    // The width of the soft edge. The minimum of 1 pixel gives a smooth edge to a hard brush.
-    const invFade = 1 / Math.max(radius * (1 - hardness), 1);
 
     // This loop runs for each pixel under the brush. It uses only simple operations, because function calls such as
     // Math.hypot are slow here. It also skips the pixels that do not change, which are most pixels when segments overlap.
@@ -1130,9 +1131,7 @@ export class MaskCanvas {
         const d2 = (ex * ex) + (ey * ey);
         if (d2 >= reach2) continue;
 
-        let v = (reach - Math.sqrt(d2)) * invFade;
-        if (v > 1) v = 1;
-        const s = ((v * v * (3 - (2 * v)) * 255) + 0.5) | 0;
+        const s = profile[((Math.sqrt(d2) * PROFILE_SAMPLES) + 0.5) | 0];
         const i = row + x;
         if (s <= alpha[i]) continue;
         alpha[i] = s;
@@ -1152,6 +1151,37 @@ export class MaskCanvas {
       dirty.x1 = Math.max(dirty.x1, x1);
       dirty.y1 = Math.max(dirty.y1, y1);
     }
+  }
+
+  /**
+   * Make the alpha profile of the brush. Entry `i` is the alpha at the distance `i / PROFILE_SAMPLES` from the brush center.
+   * The paint loop reads this table, because a calculation of the curve for each pixel is slow.
+   *
+   * The profile has full alpha in the core (`hardness` of the reach), and a feathered edge out to the reach.
+   * The edge uses a Gaussian curve that goes to 0 at the reach. The alpha falls quickly after the core and ends in a long faint tail.
+   * Thus a soft brush has no solid core. A smoothstep curve stays near full alpha for most of the edge, and looks almost hard.
+   * @param {number} reach     The distance where the alpha becomes 0, in mask pixels.
+   * @param {number} hardness  From 0 (feathered from the center) to 1 (hard edge).
+   * @param {number} opacity   The alpha at the center, from 0 to 1.
+   * @returns {Uint8Array}
+   */
+  static #brushProfile(reach, hardness, opacity) {
+    // The minimum width of 1 pixel gives a smooth (anti-aliased) edge to a hard brush.
+    const fade = Math.max(reach * (1 - Math.clamp(hardness, 0, 1)), 1);
+    const core = reach - fade;
+    const max = Math.clamp(opacity, 0, 1) * 255;
+    const tail = Math.exp(-FEATHER_FALLOFF);
+    // One more entry, because the paint loop rounds the index, and a distance just below the reach can round up.
+    const profile = new Uint8Array(Math.ceil(reach * PROFILE_SAMPLES) + 2);
+    for (let i = 0; i < profile.length; i++) {
+      const d = i / PROFILE_SAMPLES;
+      if (d >= reach) break;
+      const u = Math.max(d - core, 0) / fade;
+      // Subtract the tail value, so that the alpha is exactly 0 at the reach and the edge has no visible step.
+      const v = (Math.exp(-FEATHER_FALLOFF * u * u) - tail) / (1 - tail);
+      profile[i] = Math.round(v * max);
+    }
+    return profile;
   }
 
   /**
@@ -1234,9 +1264,8 @@ export class MaskCanvas {
    */
   #push(entry) {
     this.#undo.push(entry);
-    this.#savedOpacity = this.opacity;
 
-    // Remove the oldest steps. The memory limit counts only the mask steps, because an opacity step is very small.
+    // Remove the oldest steps. The memory limit counts only the mask steps, because a "Show Mask" step is very small.
     const maskLimit = this.mask ? Math.max(1, Math.floor(MAX_HISTORY_BYTES / this.#snapshotBytes)) : Infinity;
     let masks = this.#undo.filter((e) => "mask" in e).length;
     while ((this.#undo.length > MAX_HISTORY) || (masks > maskLimit)) {
@@ -1264,9 +1293,6 @@ export class MaskCanvas {
       this.#pixels = entry.mask;
       this.#version = entry.version;
       this.#maskContext.putImageData(this.#pixels, 0, 0);
-    } else if ("opacity" in entry) {
-      to.push({ opacity: this.opacity });
-      this.opacity = this.#savedOpacity = entry.opacity;
     } else {
       to.push({ showMask: this.showMask });
       this.showMask = entry.showMask;
