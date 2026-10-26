@@ -1,84 +1,33 @@
-/** The maximum number of undo steps. */
 const MAX_HISTORY = 30;
 
-/** The maximum memory in bytes for the undo steps. Each mask step of a large mask uses a lot of memory. */
 const MAX_HISTORY_BYTES = 256 * 1024 * 1024;
 
-/** The RGB distance between black and white. Tolerance 100% of the color select accepts this distance. */
 const MAX_COLOR_DISTANCE = Math.sqrt(3) * 255;
 
-/** A click nearer than this distance (in screen pixels) to the first point of a polygon closes the polygon. */
 const POLYGON_CLOSE_DISTANCE = 8;
 
-/**
- * A click nearer than this distance (in screen pixels) to the last point of a polygon does not add a point.
- * Thus the second click of a double-click does not add a second point at the same place.
- */
 const POLYGON_SAME_POINT_DISTANCE = 3;
 
-/** The tools that draw a shape. */
 const SHAPE_TOOLS = ["rect", "ellipse", "polygon"];
 
-/** The maximum zoom shows one mask pixel as a square of this size, in screen pixels. */
 const MAX_PIXEL_SIZE = 32;
 
-/** The zoom change for one unit of mouse wheel movement. One wheel step (100 units) changes the zoom by approximately 22%. */
 const ZOOM_SPEED = 0.002;
 
-/** The opacity of the white mask over the captured image in the view. The mask file always has the full alpha values. */
 const MASK_VIEW_OPACITY = 0.75;
 
-/** The brush profile has this number of samples for each mask pixel of distance from the brush center. */
 const PROFILE_SAMPLES = 4;
 
-/**
- * The steepness of the feathered edge of the brush. A larger value makes a thinner visible edge with a longer faint tail.
- * At 4, the alpha at the middle of the feathered edge is approximately 36%.
- */
 const FEATHER_FALLOFF = 4;
 
-/**
- * One undo step. It has a copy of the mask and its version, or a "Show Mask" value.
- * @typedef {{mask: ImageData, version: number}|{showMask: boolean}} HistoryEntry
- */
-
-/**
- * The brush or eraser stroke that the user draws at this time.
- * @typedef {object} Stroke
- * @property {number} pointerId
- * @property {boolean} erase                The stroke removes the mask.
- * @property {number} radius                In mask pixels.
- * @property {Uint8Array} profile           The stroke alpha (0 to 255) at each distance from the brush center. See `#brushProfile`.
- * @property {Uint8ClampedArray} before     The mask pixels before the stroke.
- * @property {{x: number, y: number}} last  The last painted point of the stroke, in mask pixels.
- * @property {{x: number, y: number}[]} pending  The pointer points that the stroke did not paint yet.
- * @property {{x0: number, y0: number, x1: number, y1: number}|null} dirty  The changed area that the mask canvas does not show yet.
- */
-
-/**
- * The shape that the user draws at this time. All points are in mask pixels.
- * A rectangle or an ellipse fills the box between its two corners. The user drags it with one pointer.
- * A polygon gets one point for each click.
- * @typedef {{tool: "rect"|"ellipse", pointerId: number, start: {x: number, y: number}, end: {x: number, y: number}}
- *   |{tool: "polygon", points: {x: number, y: number}[]}} Shape
- */
-
-/**
- * The mask of a tile, the captured image under it, and the view that shows them together.
- * The mask has the same pixel size as the captured image.
- * In the mask, white with full alpha = effect on, transparent = effect off.
- */
+// Owns the base image, the mask, the display canvas, the tools, the view, and the undo history.
+// Mask convention: white with full alpha is "effect on". Transparent is "effect off".
 export class MaskCanvas {
-  /**
-   * @param {object} [options]
-   * @param {boolean} [options.showMask] Show the mask in the view.
-   */
   constructor({ showMask = true } = {}) {
     this.showMask = showMask;
     this.display = document.createElement("canvas");
     this.display.classList.add("tile-fx-painter-display");
 
-    // The display stays for the full life of the mask, thus the listeners also stay after a render of the window.
     const end = this.#onPointerEnd.bind(this);
     this.display.addEventListener("pointerdown", this.#onPointerDown.bind(this));
     this.display.addEventListener("pointermove", this.#onPointerMove.bind(this));
@@ -87,18 +36,12 @@ export class MaskCanvas {
     this.display.addEventListener("lostpointercapture", end);
     this.display.addEventListener("pointerleave", this.#onPointerLeave.bind(this));
     this.display.addEventListener("dblclick", this.#onDoubleClick.bind(this));
-    // A passive listener cannot stop the page scroll.
+    // Not passive, because the handler calls preventDefault to stop the page scroll.
     this.display.addEventListener("wheel", this.#onWheel.bind(this), { passive: false });
   }
 
-  /** @type {string} */
   #tool = "brush";
 
-  /**
-   * The tool for the pointer: "brush", "eraser", "select" (color select), "rect", "ellipse", or "polygon".
-   * A tool change cancels the shape that the user draws at this time.
-   * @type {string}
-   */
   get tool() {
     return this.#tool;
   }
@@ -110,155 +53,72 @@ export class MaskCanvas {
     this.requestDraw();
   }
 
-  /**
-   * The shapes add their area to the mask ("add"), or remove it from the mask ("subtract").
-   * @type {string}
-   */
   shapeMode = "add";
 
-  /**
-   * The color difference that the color select accepts, from 0 (the same color only) to 100 (all colors).
-   * @type {number}
-   */
   selectTolerance = 15;
 
-  /**
-   * The color select adds the selected pixels to the mask ("add"), or removes them from the mask ("subtract").
-   * @type {string}
-   */
   selectMode = "add";
 
-  /**
-   * The color select gets only the pixels that connect to the clicked pixel. If false, it gets all pixels with a near color.
-   * @type {boolean}
-   */
   selectContiguous = true;
 
-  /**
-   * The diameter of the brush and the eraser, in mask pixels.
-   * @type {number}
-   */
   brushSize = 64;
 
-  /**
-   * The part of the brush and eraser radius that has full alpha, from 0 to 1. The remaining outer part has a feathered edge.
-   * At 0, the feathered edge starts at the brush center. At 1, the edge is hard.
-   * @type {number}
-   */
   brushHardness = 0.8;
 
-  /**
-   * The maximum alpha of the brush and the eraser, from 0 to 1.
-   * One stroke does not go above this value where it crosses itself. A second stroke on the same area adds to the first.
-   * @type {number}
-   */
   brushOpacity = 1;
 
-  /**
-   * The captured image under the tile.
-   * @type {HTMLCanvasElement|null}
-   */
   base = null;
 
-  /**
-   * The mask.
-   * @type {HTMLCanvasElement|null}
-   */
   mask = null;
 
-  /**
-   * A function that the mask calls when the undo or redo state changes.
-   * @type {Function|null}
-   */
   onHistoryChange = null;
 
-  /** @type {CanvasRenderingContext2D|null} */
   #maskContext = null;
 
-  /**
-   * The mask pixels. All changes go into this data first, and then into the mask canvas with `putImageData`.
-   * Thus the code never reads pixels back from the mask canvas, and the browser can keep the canvas on the GPU.
-   * @type {ImageData|null}
-   */
+  // The source of the mask. Change it first, then call #putPixels.
+  // Do not read pixels back from the mask canvas. It is slow on large masks.
   #pixels = null;
 
-  /**
-   * The pixels of the captured image. The color select reads them at its first click after each capture.
-   * @type {ImageData|null}
-   */
   #basePixels = null;
 
-  /**
-   * The version of the mask pixels. Each change to the mask gets a new version, and undo and redo restore the old version.
-   * Thus the mask has no unsaved changes when this value is the same as `#savedVersion`, also after an undo back to the saved mask.
-   * @type {number}
-   */
+  // #version identifies the current mask state. Each change takes a new number from #lastVersion.
+  // The mask is dirty when #version is not #savedVersion. An undo restores the old number.
   #version = 0;
 
-  /** The highest version that the mask gave to a change. A new change never gets a version that the history also has. */
   #lastVersion = 0;
 
-  /** The version at the last save or load. */
   #savedVersion = 0;
 
-  /** @type {HistoryEntry[]} */
   #undo = [];
 
-  /** @type {HistoryEntry[]} */
   #redo = [];
 
-  /** @type {HTMLElement|null} */
   #view = null;
 
-  /** @type {ResizeObserver|null} */
   #observer = null;
 
-  /** @type {number|null} */
   #frame = null;
 
-  /** The size of the view, in CSS pixels. The display fills the full view. */
   #viewWidth = 0;
 
-  /** @type {number} */
   #viewHeight = 0;
 
-  /** The scale (CSS pixels for each mask pixel) at zoom 1. Zoom 1 fits the full image in the view. */
   #fitScale = 1;
 
-  /** The zoom, from 1 to `#maxZoom`. */
   #zoom = 1;
 
-  /**
-   * The position of the top left corner of the mask on the display, in CSS pixels.
-   * @type {{x: number, y: number}}
-   */
   #offset = { x: 0, y: 0 };
 
-  /**
-   * The pan that the user does at this time with the middle mouse button. The point is the last pointer position, in client pixels.
-   * @type {{pointerId: number, x: number, y: number}|null}
-   */
   #pan = null;
 
-  /** The user holds the pan key (Space). A drag with the left mouse button then pans. */
   #panKey = false;
 
-  /** @type {Stroke|null} */
   #stroke = null;
 
-  /** @type {Shape|null} */
   #shape = null;
 
-  /**
-   * The alpha of the current stroke for each mask pixel. The array stays between strokes, so that a stroke does not make a new large array.
-   * @type {Uint8Array|null}
-   */
   #strokeAlpha = null;
 
-  /**
-   * The pointer position on the display, in mask pixels. The display shows the brush circle there.
-   * @type {{x: number, y: number}|null}
-   */
   #cursor = null;
 
   get canUndo() {
@@ -269,56 +129,33 @@ export class MaskCanvas {
     return this.#redo.length > 0;
   }
 
-  /** The CSS pixels on the display for each mask pixel. */
   get #scale() {
     return this.#fitScale * this.#zoom;
   }
 
-  /**
-   * The zoom that shows one mask pixel as a square of `MAX_PIXEL_SIZE` CSS pixels.
-   * A very small image can have larger pixels at zoom 1. Then the maximum zoom is 1.
-   */
   get #maxZoom() {
     return Math.max(1, MAX_PIXEL_SIZE / this.#fitScale);
   }
 
-  /**
-   * The version of the mask pixels at this time. Give it to `markSaved` after the save.
-   * @type {number}
-   */
   get version() {
     return this.#version;
   }
 
-  /**
-   * The mask has changes after the last save or load. "Show Mask" changes are not mask changes.
-   * @type {boolean}
-   */
   get isDirty() {
     return this.#version !== this.#savedVersion;
   }
 
-  /**
-   * Record a version of the mask as the saved version.
-   * @param {number} [version]  The version in the saved file. Changes after this version stay unsaved.
-   */
   markSaved(version = this.#version) {
     this.#savedVersion = version;
     this.onHistoryChange?.();
   }
 
-  /**
-   * Set a new captured image.
-   * If the size is different from the mask, this function scales the mask to the new size and clears the full undo history.
-   * The first capture also clears the full undo history.
-   * @param {HTMLCanvasElement} base
-   */
   setBase(base) {
     this.#stroke = null;
-    // The points of a shape are in mask pixels. They are not correct after a size change.
     this.#shape = null;
     this.base = base;
     this.#basePixels = null;
+    // A new size keeps the old mask, scaled. It also clears the history, because the snapshots do not fit.
     const old = this.mask;
     if (!old || (old.width !== base.width) || (old.height !== base.height)) {
       const { width, height } = base;
@@ -331,23 +168,15 @@ export class MaskCanvas {
       this.mask = mask;
       this.#putPixels();
 
-      // The first capture and each tile resize start a new history.
       this.#undo.length = 0;
       this.#redo.length = 0;
       this.onHistoryChange?.();
 
-      // The pan position is in mask pixels of the old size.
       this.#zoom = 1;
     }
     this.#fit();
   }
 
-  /**
-   * Replace the mask with a saved mask image. If the image size is different from the mask, this function scales the image to the mask size.
-   * This function also clears the full undo history, so that undo cannot go back to the empty mask before the load.
-   * Call this after `setBase`, because `setBase` sets the mask size.
-   * @param {CanvasImageSource} image
-   */
   load(image) {
     if (!this.mask) return;
     this.#stroke = null;
@@ -355,20 +184,16 @@ export class MaskCanvas {
     this.#putPixels();
     this.#undo.length = 0;
     this.#redo.length = 0;
+    // A loaded file is the saved state, so the mask is not dirty.
     this.#version = this.#savedVersion = ++this.#lastVersion;
     this.onHistoryChange?.();
   }
 
-  /** Paint the pointer points that the stroke did not paint yet, and stop the stroke. Call this before a save, so that the file has the full stroke. */
   endStroke() {
     this.#flushStroke();
     this.#stroke = null;
   }
 
-  /**
-   * Put the display canvas into a view element. The display then fits the view size.
-   * @param {HTMLElement} view
-   */
   attach(view) {
     if ((this.#view === view) && (this.display.parentElement === view)) {
       this.#fit();
@@ -382,7 +207,6 @@ export class MaskCanvas {
     this.#fit();
   }
 
-  /** Stop the updates of the display. The mask data stays. */
   detach() {
     this.#observer?.disconnect();
     this.#observer = null;
@@ -391,13 +215,7 @@ export class MaskCanvas {
     this.#frame = null;
   }
 
-  /**
-   * Change pointer coordinates to mask pixel coordinates.
-   * The values are not rounded, and can be outside the mask.
-   * @param {number} clientX
-   * @param {number} clientY
-   * @returns {{x: number, y: number}}
-   */
+  // Converts client (screen) coordinates to mask pixels.
   toMaskPoint(clientX, clientY) {
     const point = this.#toViewPoint(clientX, clientY);
     const scale = this.#scale;
@@ -407,29 +225,18 @@ export class MaskCanvas {
     };
   }
 
-  /**
-   * Change pointer coordinates to CSS pixels on the display.
-   * Foundry can scale a window with a CSS transform. Then the client pixels are not the same as the CSS pixels of the view.
-   * @param {number} clientX
-   * @param {number} clientY
-   * @returns {{x: number, y: number}}
-   */
   #toViewPoint(clientX, clientY) {
+    // A CSS transform (for example, the window scale) makes the rect size differ from #viewWidth.
     const rect = this.display.getBoundingClientRect();
     const ratio = this.#viewWidth / rect.width;
     return { x: (clientX - rect.left) * ratio, y: (clientY - rect.top) * ratio };
   }
 
-  /**
-   * Zoom the view, and keep the mask point under the pointer at the same position.
-   * @param {number} factor   The zoom multiplier. A value more than 1 zooms in.
-   * @param {number} clientX
-   * @param {number} clientY
-   */
   zoomAt(factor, clientX, clientY) {
     if (!this.base || !this.#viewWidth) return;
     const zoom = Math.clamp(this.#zoom * factor, 1, this.#maxZoom);
     if (zoom === this.#zoom) return;
+    // Keep the mask point under the pointer at the same screen position.
     const point = this.toMaskPoint(clientX, clientY);
     const view = this.#toViewPoint(clientX, clientY);
     this.#zoom = zoom;
@@ -440,25 +247,17 @@ export class MaskCanvas {
     this.requestDraw();
   }
 
-  /** The user holds the pan key. */
   get panKey() {
     return this.#panKey;
   }
 
-  /**
-   * Tell the mask that the user pushed or released the pan key (Space).
-   * A release during a drag does not stop the pan. The pan stops when the mouse button goes up.
-   * @param {boolean} down
-   */
   setPanKey(down) {
     if (down === this.#panKey) return;
     this.#panKey = down;
     this.display.classList.toggle("pan-ready", down);
-    // The brush circle does not show while the pan key is down.
     this.requestDraw();
   }
 
-  /** Set the zoom back to 1 and remove the pan. The full image then fits in the view, at the center. */
   resetView() {
     if (!this.base) return;
     this.#zoom = 1;
@@ -466,11 +265,6 @@ export class MaskCanvas {
     this.requestDraw();
   }
 
-  /**
-   * Keep the image in the view.
-   * On an axis where the image is smaller than the view, the image is at the center.
-   * On an axis where the image is larger than the view, the image fills the view and shows no empty area.
-   */
   #clampOffset() {
     const scale = this.#scale;
     const axes = [["x", this.#viewWidth, this.base.width], ["y", this.#viewHeight, this.base.height]];
@@ -480,16 +274,12 @@ export class MaskCanvas {
     }
   }
 
-  /** Draw the display in the next animation frame. More requests in the same frame cause only one draw. */
   requestDraw() {
     if (this.#frame !== null) return;
     this.#frame = requestAnimationFrame(() => this.draw());
   }
 
-  /** Draw the captured image, and then the white mask on it. */
   draw() {
-    // Paint the pointer points of this frame. All the points of one frame then need only one canvas update.
-    // Do this before the frame is reset. Then the draw request of the paint does not start one more frame.
     this.#flushStroke();
 
     if (this.#frame !== null) cancelAnimationFrame(this.#frame);
@@ -500,11 +290,11 @@ export class MaskCanvas {
     ctx.clearRect(0, 0, this.display.width, this.display.height);
     if (!this.base || !this.#viewWidth) return;
 
-    // All the drawings below are in mask pixels. The transform moves them to the zoom and pan position.
+    // ratio is the device pixel ratio. The transform maps mask pixels to display canvas pixels.
     const ratio = this.display.width / this.#viewWidth;
     const scale = this.#scale * ratio;
     ctx.setTransform(scale, 0, 0, scale, this.#offset.x * ratio, this.#offset.y * ratio);
-    // At a high zoom, show each mask pixel as a sharp square, so that the user can see the exact mask edge.
+    // Smooth when zoomed out. Show sharp pixels when zoomed in.
     ctx.imageSmoothingEnabled = scale < 2;
     ctx.drawImage(this.base, 0, 0);
     if (this.showMask && this.mask) {
@@ -512,31 +302,19 @@ export class MaskCanvas {
       ctx.drawImage(this.mask, 0, 0);
       ctx.globalAlpha = 1;
     }
-    // The line widths must be in mask pixels too. One unit is one CSS pixel.
+    // unit is one screen pixel in mask pixels. It keeps the overlay line width constant at any zoom.
     const unit = 1 / this.#scale;
     this.#drawShape(ctx, unit);
     this.#drawCursor(ctx, unit);
   }
 
-  /**
-   * Draw the brush circle at the pointer position.
-   * @param {CanvasRenderingContext2D} ctx  The transform of the context must change mask pixels to display pixels.
-   * @param {number} unit                   One CSS pixel, in mask pixels.
-   */
   #drawCursor(ctx, unit) {
-    // The other tools use only the crosshair pointer of the display.
     if (!this.#cursor || this.#pan || this.#panKey || !this.mask || !["brush", "eraser"].includes(this.tool)) return;
     const path = new Path2D();
     path.arc(this.#cursor.x, this.#cursor.y, Math.max(this.brushSize / 2, 2 * unit), 0, Math.PI * 2);
     MaskCanvas.#strokeOutline(ctx, path, unit);
   }
 
-  /**
-   * Draw the outline of the shape that the user draws at this time.
-   * A polygon also shows a line to the pointer, and a circle on its first point. A click on the circle closes the polygon.
-   * @param {CanvasRenderingContext2D} ctx  The transform of the context must change mask pixels to display pixels.
-   * @param {number} unit                   One CSS pixel, in mask pixels.
-   */
   #drawShape(ctx, unit) {
     const shape = this.#shape;
     if (!shape || !this.mask) return;
@@ -560,12 +338,6 @@ export class MaskCanvas {
     }
   }
 
-  /**
-   * Draw a path with a dark line and a light line, thus it shows on dark and on light images.
-   * @param {CanvasRenderingContext2D} ctx
-   * @param {Path2D} path
-   * @param {number} unit  The width of the light line, in the units of the current transform.
-   */
   static #strokeOutline(ctx, path, unit) {
     ctx.lineWidth = 3 * unit;
     ctx.strokeStyle = "rgba(0, 0, 0, 0.6)";
@@ -575,41 +347,26 @@ export class MaskCanvas {
     ctx.stroke(path);
   }
 
-  /** Keep the mask before a change, so that undo can restore it. Call this before each change to the mask. */
   pushUndo() {
     this.#pushMask(this.#snapshot());
   }
 
-  /**
-   * Show or hide the mask in the view, as one undo step.
-   * @param {boolean} showMask
-   */
   setShowMask(showMask) {
     if (showMask === this.showMask) return;
     const old = this.showMask;
-    // Change the value before the push. The push updates the toolbar, and the toolbar must get the new value.
     this.showMask = showMask;
     this.#push({ showMask: old });
     this.requestDraw();
   }
 
-  /**
-   * Restore the mask before the last change.
-   * @returns {boolean}  False if there is no change to undo.
-   */
   undo() {
     return this.#restore(this.#undo, this.#redo);
   }
 
-  /**
-   * Do again the last change that undo reversed.
-   * @returns {boolean}  False if there is no change to redo.
-   */
   redo() {
     return this.#restore(this.#redo, this.#undo);
   }
 
-  /** Invert the mask. The effect turns on where it was off, and off where it was on. */
   invert() {
     if (!this.mask) return;
     this.pushUndo();
@@ -621,7 +378,6 @@ export class MaskCanvas {
     this.#putPixels();
   }
 
-  /** Remove the full mask. */
   clear() {
     if (!this.mask) return;
     this.pushUndo();
@@ -629,13 +385,6 @@ export class MaskCanvas {
     this.#putPixels();
   }
 
-  /**
-   * Select the pixels of the captured image that have a color near the color at a point.
-   * Add the selection to the mask or remove it from the mask, as one undo step.
-   * The selection ignores transparent pixels, for example the area outside the scene background.
-   * @param {{x: number, y: number}} point  In mask pixels.
-   * @returns {boolean}  False if the mask did not change.
-   */
   selectColor(point) {
     if (!this.base || !this.mask) return false;
     const { width, height } = this.mask;
@@ -643,7 +392,6 @@ export class MaskCanvas {
     const y = Math.floor(point.y);
     if ((x < 0) || (y < 0) || (x >= width) || (y >= height)) return false;
 
-    // One read for each capture. More reads can make the browser move the captured image from the GPU to the CPU.
     this.#basePixels ??= this.base.getContext("2d").getImageData(0, 0, width, height);
     const src = this.#basePixels.data;
     const start = (y * width) + x;
@@ -653,6 +401,7 @@ export class MaskCanvas {
     const r = src[so];
     const g = src[so + 1];
     const b = src[so + 2];
+    // selectTolerance is 0 to 100 percent of the largest RGB distance. Compare squared distances.
     const limit = (Math.clamp(this.selectTolerance, 0, 100) / 100) * MAX_COLOR_DISTANCE;
     const limit2 = limit * limit;
     const match = (i) => {
@@ -671,8 +420,6 @@ export class MaskCanvas {
       for (let i = 0; i < selected.length; i++) if (match(i)) selected[i] = 1;
     }
 
-    // Change the pixels first, and make the undo step only if a pixel changed. Then a click on a masked area in the
-    // "add" mode does not make an empty undo step or an unsaved change.
     const before = this.#snapshot();
     const px = this.#pixels.data;
     const value = (this.selectMode === "subtract") ? 0 : 255;
@@ -691,23 +438,13 @@ export class MaskCanvas {
     return true;
   }
 
-  /**
-   * Find the pixels that connect to a start pixel through matching pixels. Diagonal pixels do not connect.
-   *
-   * This is a scanline fill. It fills a full row run at a time, and keeps only one stack entry for each run in the rows above
-   * and below. A stack entry for each pixel can need a very large stack on a large mask.
-   * @param {number} width
-   * @param {number} height
-   * @param {number} start               The index of the start pixel. It must match.
-   * @param {(i: number) => boolean} match  Tells if the pixel with an index is in the selection.
-   * @returns {Uint8Array}  1 for each selected pixel.
-   */
+  // Scanline fill. Each stack entry is one pixel. The loop expands it to a full run in its row,
+  // then pushes one seed for each matching run in the rows above and below.
   static #floodFill(width, height, start, match) {
     const selected = new Uint8Array(width * height);
     const stack = [start];
     while (stack.length) {
       const i = stack.pop();
-      // Two runs can add the same pixel to the stack.
       if (selected[i]) continue;
       const row = i - (i % width);
       let left = i;
@@ -730,10 +467,6 @@ export class MaskCanvas {
     return selected;
   }
 
-  /**
-   * Close the polygon that the user draws at this time, and apply it to the mask.
-   * @returns {boolean}  False if there is no polygon, or if the polygon has less than 3 points. A polygon with less than 3 points stays open.
-   */
   closePolygon() {
     const shape = this.#shape;
     if ((shape?.tool !== "polygon") || (shape.points.length < 3)) return false;
@@ -743,10 +476,6 @@ export class MaskCanvas {
     return true;
   }
 
-  /**
-   * Remove the last point of the polygon that the user draws at this time. The removal of the only point cancels the polygon.
-   * @returns {boolean}  False if there is no polygon.
-   */
   removePolygonPoint() {
     const points = this.#shape?.points;
     if (!points) return false;
@@ -756,10 +485,6 @@ export class MaskCanvas {
     return true;
   }
 
-  /**
-   * Stop the shape that the user draws at this time. The mask does not change.
-   * @returns {boolean}  False if there is no shape.
-   */
   cancelShape() {
     if (!this.#shape) return false;
     this.#shape = null;
@@ -767,13 +492,8 @@ export class MaskCanvas {
     return true;
   }
 
-  /**
-   * Add the area of a shape to the mask or remove it from the mask, as one undo step.
-   * The edge of the shape is smooth (anti-aliased).
-   * @param {Shape} shape
-   * @returns {boolean}  False if the mask did not change.
-   */
   #fillShape(shape) {
+    // Draw the shape on a small canvas that covers only its bounds. The canvas gives anti-aliased alpha.
     const path = MaskCanvas.#shapePath(shape);
     if (!path) return false;
     const { width, height } = this.mask;
@@ -786,7 +506,6 @@ export class MaskCanvas {
     const y1 = Math.min(height, Math.ceil(Math.max(...ys)));
     if ((x1 <= x0) || (y1 <= y0)) return false;
 
-    // The canvas draws the shape with a smooth edge. A temporary canvas with only the area of the shape keeps the read small.
     const w = x1 - x0;
     const h = y1 - y0;
     const canvas = document.createElement("canvas");
@@ -797,7 +516,6 @@ export class MaskCanvas {
     ctx.fill(path);
     const shapePx = ctx.getImageData(0, 0, w, h).data;
 
-    // Change the pixels first, and make the undo step only if a pixel changed. The calculation is the same as the brush.
     const before = this.#snapshot();
     const px = this.#pixels.data;
     const subtract = this.shapeMode === "subtract";
@@ -809,6 +527,7 @@ export class MaskCanvas {
         if (!a) continue;
         const o = (row + x) * 4;
         const old = px[o + 3];
+        // Integer alpha blend with rounding. Add: "over" with white. Subtract: scale the old alpha down.
         const value = subtract ? (((old * (255 - a)) + 127) / 255) | 0 : old + ((((a * (255 - old)) + 127) / 255) | 0);
         if (value === old) continue;
         px[o] = px[o + 1] = px[o + 2] = 255;
@@ -822,11 +541,6 @@ export class MaskCanvas {
     return true;
   }
 
-  /**
-   * Make the path of a shape, in mask pixels.
-   * @param {Shape} shape
-   * @returns {Path2D|null}  Null if the shape has no area.
-   */
   static #shapePath(shape) {
     const path = new Path2D();
     if (shape.tool === "polygon") {
@@ -846,32 +560,17 @@ export class MaskCanvas {
     return path;
   }
 
-  /**
-   * Tell if a click at a point closes the polygon that the user draws at this time.
-   * @param {{x: number, y: number}|null} point  In mask pixels.
-   * @returns {boolean}
-   */
   #canClosePolygonAt(point) {
     const points = this.#shape?.points;
     return !!point && (points?.length >= 3) && this.#isNear(point, points[0], POLYGON_CLOSE_DISTANCE);
   }
 
-  /**
-   * Tell if two points are near on the screen. The distance limit stays the same at all display sizes.
-   * @param {{x: number, y: number}} a     In mask pixels.
-   * @param {{x: number, y: number}} b     In mask pixels.
-   * @param {number} distance              The limit, in screen pixels.
-   * @returns {boolean}
-   */
+  // The distance is in screen pixels. The points are in mask pixels.
   #isNear(a, b, distance) {
     const screenScale = this.#scale * (this.display.getBoundingClientRect().width / this.#viewWidth);
     return Math.hypot(a.x - b.x, a.y - b.y) <= distance / screenScale;
   }
 
-  /**
-   * Add a point to the polygon, or start a new polygon. A click on the first point closes the polygon.
-   * @param {{x: number, y: number}} point  In mask pixels.
-   */
   #addPolygonPoint(point) {
     const shape = this.#shape;
     if (!shape) this.#shape = { tool: "polygon", points: [point] };
@@ -880,17 +579,13 @@ export class MaskCanvas {
     this.requestDraw();
   }
 
-  /**
-   * Copy the mask pixels into the mask canvas, and draw the display again.
-   * @param {{x0: number, y0: number, x1: number, y1: number}} [rect]  Copy only this area. The default is the full mask.
-   */
+  // Copies #pixels to the mask canvas. The optional rect (mask pixels, x1 and y1 exclusive) limits the copy.
   #putPixels(rect) {
     if (rect) this.#maskContext.putImageData(this.#pixels, 0, 0, rect.x0, rect.y0, rect.x1 - rect.x0, rect.y1 - rect.y0);
     else this.#maskContext.putImageData(this.#pixels, 0, 0);
     this.requestDraw();
   }
 
-  /** @param {PointerEvent} event */
   #onPointerDown(event) {
     if (!this.base || !this.mask) return;
     if ((event.button === 1) || ((event.button === 0) && this.#panKey)) {
@@ -908,9 +603,7 @@ export class MaskCanvas {
       this.#addPolygonPoint(point);
       return;
     }
-    // A second pointer must not start a second rectangle or ellipse during a drag.
     if (this.#shape) return;
-    // The capture keeps the stroke or the drag when the pointer goes out of the display.
     this.display.setPointerCapture(event.pointerId);
     if (SHAPE_TOOLS.includes(this.tool)) {
       this.#shape = { tool: this.tool, pointerId: event.pointerId, start: point, end: point };
@@ -920,7 +613,6 @@ export class MaskCanvas {
     this.#beginStroke(event.pointerId, point);
   }
 
-  /** @param {PointerEvent} event */
   #onPointerMove(event) {
     if (!this.mask) return;
     const pan = this.#pan;
@@ -935,8 +627,7 @@ export class MaskCanvas {
     }
     const stroke = this.#stroke;
     if (stroke && (event.pointerId === stroke.pointerId)) {
-      // The browser can join many pointer moves into one event. Keep all of them, so that curves stay smooth.
-      // The next animation frame paints them.
+      // The browser can merge several moves into one event. Use all of them for a smooth stroke.
       const events = event.getCoalescedEvents?.() ?? [];
       for (const e of (events.length ? events : [event])) stroke.pending.push(this.toMaskPoint(e.clientX, e.clientY));
     }
@@ -945,11 +636,6 @@ export class MaskCanvas {
     this.requestDraw();
   }
 
-  /**
-   * End a stroke, a pan, or the drag of a rectangle or an ellipse.
-   * Only "pointerup" applies the shape. A "pointercancel" or a lost pointer capture cancels it.
-   * @param {PointerEvent} event
-   */
   #onPointerEnd(event) {
     if (this.#pan?.pointerId === event.pointerId) {
       this.#pan = null;
@@ -972,29 +658,18 @@ export class MaskCanvas {
     this.#stroke = null;
   }
 
-  /** @param {PointerEvent} event */
   #onPointerLeave(event) {
     if (this.#stroke?.pointerId === event.pointerId) return;
     this.#cursor = null;
     this.requestDraw();
   }
 
-  /**
-   * A double-click closes the polygon.
-   * If the first click of the double-click closed the polygon, the second click started a new polygon with one point. Remove that polygon.
-   * @param {MouseEvent} event
-   */
   #onDoubleClick(event) {
     if ((event.button !== 0) || (this.tool !== "polygon")) return;
     if (!this.closePolygon() && (this.#shape?.points.length === 1)) this.cancelShape();
   }
 
-  /**
-   * Start a pan with the middle mouse button, or with the left mouse button while the pan key is down.
-   * @param {PointerEvent} event
-   */
   #beginPan(event) {
-    // Stop the auto-scroll of the browser, which starts with the middle button.
     event.preventDefault();
     if (this.#pan) return;
     this.display.setPointerCapture(event.pointerId);
@@ -1003,30 +678,21 @@ export class MaskCanvas {
     this.requestDraw();
   }
 
-  /**
-   * Zoom with the mouse wheel. The mask point under the pointer stays under the pointer.
-   * @param {WheelEvent} event
-   */
   #onWheel(event) {
     if (!this.base || !this.#viewWidth) return;
     event.preventDefault();
-    // The delta can be in lines or in pages, not in pixels.
     let delta = event.deltaY;
     if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) delta *= 16;
     else if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) delta *= this.#viewHeight;
     this.zoomAt(Math.exp(-delta * ZOOM_SPEED), event.clientX, event.clientY);
   }
 
-  /**
-   * Start a brush or eraser stroke. The full stroke is one undo step.
-   * @param {number} pointerId
-   * @param {{x: number, y: number}} point  In mask pixels.
-   */
   #beginStroke(pointerId, point) {
-    // The undo step and the stroke use the same copy. The stroke only reads it.
+    // The snapshot is both the undo entry and the base for the stroke blend.
     const before = this.#snapshot();
     this.#pushMask(before);
 
+    // #strokeAlpha holds the highest brush alpha per pixel in this stroke.
     const size = this.mask.width * this.mask.height;
     if (this.#strokeAlpha?.length === size) this.#strokeAlpha.fill(0);
     else this.#strokeAlpha = new Uint8Array(size);
@@ -1046,16 +712,10 @@ export class MaskCanvas {
     this.#flushStroke();
   }
 
-  /**
-   * Paint the pointer points that the stroke did not paint yet, and copy the changed area into the mask canvas.
-   *
-   * A fast mouse sends many points in each frame. Each segment paints a full brush width, thus most of the pixels again and again.
-   * Points that are nearer than a half brush radius to the last painted point are skipped. For a large brush, this removes most segments.
-   * The last point of the frame is always painted, so that the stroke stays at the pointer.
-   */
   #flushStroke() {
     const stroke = this.#stroke;
     if (!stroke) return;
+    // Skip points closer than the spacing, but always paint the last point.
     const spacing = Math.max(stroke.radius / 2, 1);
     const pending = stroke.pending;
     for (let i = 0; i < pending.length; i++) {
@@ -1072,15 +732,10 @@ export class MaskCanvas {
     stroke.dirty = null;
   }
 
-  /**
-   * Paint the stroke from one point to the next point.
-   * @param {{x: number, y: number}} from
-   * @param {{x: number, y: number}} to
-   */
   #paintSegment(from, to) {
     const dx = to.x - from.x;
     const dy = to.y - from.y;
-    // A long diagonal line has a very large bounding box. Short parts keep the number of changed pixels small.
+    // Split a long segment into short capsules, so that the bounding box of each stays small.
     const parts = Math.max(1, Math.ceil(Math.hypot(dx, dy) / Math.max(this.#stroke.radius, 8)));
     for (let i = 0; i < parts; i++) {
       const a = { x: from.x + (dx * i / parts), y: from.y + (dy * i / parts) };
@@ -1089,14 +744,9 @@ export class MaskCanvas {
     }
   }
 
-  /**
-   * Paint a line with round ends from point a to point b into the mask.
-   *
-   * Each pixel keeps the highest stroke alpha of the full stroke, and the mask gets the pixels before the stroke plus that alpha.
-   * Thus the parts of a stroke that overlap do not add together, and a soft edge stays soft.
-   * @param {{x: number, y: number}} a
-   * @param {{x: number, y: number}} b
-   */
+  // Paints a capsule (the segment a-b with the brush radius). Each pixel uses its distance to the segment.
+  // A pixel changes only when the new alpha is higher than the stroke alpha it has. It blends with the
+  // pixels from before the stroke, so overlap in one stroke does not add up.
   #paintCapsule(a, b) {
     const stroke = this.#stroke;
     const { radius, profile, erase, before } = stroke;
@@ -1117,8 +767,6 @@ export class MaskCanvas {
     const invLength2 = length2 ? 1 / length2 : 0;
     const reach2 = reach * reach;
 
-    // This loop runs for each pixel under the brush. It uses only simple operations, because function calls such as
-    // Math.hypot are slow here. It also skips the pixels that do not change, which are most pixels when segments overlap.
     for (let y = y0; y < y1; y++) {
       const ry = (y + 0.5) - a.y;
       const row = y * width;
@@ -1143,6 +791,7 @@ export class MaskCanvas {
       }
     }
 
+    // Grow the dirty rect, so that #flushStroke uploads only the changed area.
     const dirty = stroke.dirty;
     if (!dirty) stroke.dirty = { x0, y0, x1, y1 };
     else {
@@ -1153,48 +802,30 @@ export class MaskCanvas {
     }
   }
 
-  /**
-   * Make the alpha profile of the brush. Entry `i` is the alpha at the distance `i / PROFILE_SAMPLES` from the brush center.
-   * The paint loop reads this table, because a calculation of the curve for each pixel is slow.
-   *
-   * The profile has full alpha in the core (`hardness` of the reach), and a feathered edge out to the reach.
-   * The edge uses a Gaussian curve that goes to 0 at the reach. The alpha falls quickly after the core and ends in a long faint tail.
-   * Thus a soft brush has no solid core. A smoothstep curve stays near full alpha for most of the edge, and looks almost hard.
-   * @param {number} reach     The distance where the alpha becomes 0, in mask pixels.
-   * @param {number} hardness  From 0 (feathered from the center) to 1 (hard edge).
-   * @param {number} opacity   The alpha at the center, from 0 to 1.
-   * @returns {Uint8Array}
-   */
+  // Builds a lookup table of alpha (0 to 255) by distance from the brush center, in steps of 1/PROFILE_SAMPLES pixel.
+  // The core has full alpha. The feather is a Gaussian that goes to 0 at reach. The tail term moves it down to exactly 0.
   static #brushProfile(reach, hardness, opacity) {
-    // The minimum width of 1 pixel gives a smooth (anti-aliased) edge to a hard brush.
     const fade = Math.max(reach * (1 - Math.clamp(hardness, 0, 1)), 1);
     const core = reach - fade;
     const max = Math.clamp(opacity, 0, 1) * 255;
     const tail = Math.exp(-FEATHER_FALLOFF);
-    // One more entry, because the paint loop rounds the index, and a distance just below the reach can round up.
     const profile = new Uint8Array(Math.ceil(reach * PROFILE_SAMPLES) + 2);
     for (let i = 0; i < profile.length; i++) {
       const d = i / PROFILE_SAMPLES;
       if (d >= reach) break;
       const u = Math.max(d - core, 0) / fade;
-      // Subtract the tail value, so that the alpha is exactly 0 at the reach and the edge has no visible step.
       const v = (Math.exp(-FEATHER_FALLOFF * u * u) - tail) / (1 - tail);
       profile[i] = Math.round(v * max);
     }
     return profile;
   }
 
-  /**
-   * Give the display the size of the view, and calculate the scale at zoom 1 again.
-   * The display has the pixel density of the screen, thus the image stays sharp.
-   * The zoom stays, and the mask point at the center of the view stays at the center.
-   */
   #fit() {
     if (!this.base || !this.#view) return;
     const { clientWidth, clientHeight } = this.#view;
     if (!clientWidth || !clientHeight) return;
 
-    // The first fit has no center point. The clamp below then puts the image at the center.
+    // Keep the mask point at the view center fixed when the view size changes.
     const center = this.#viewWidth ? {
       x: ((this.#viewWidth / 2) - this.#offset.x) / this.#scale,
       y: ((this.#viewHeight / 2) - this.#offset.y) / this.#scale
@@ -1212,60 +843,41 @@ export class MaskCanvas {
     this.display.width = Math.round(clientWidth * ratio);
     this.display.height = Math.round(clientHeight * ratio);
 
-    // A size change clears the canvas. Draw now, so that the display does not flash.
     this.draw();
   }
 
-  /** @returns {ImageData}  A copy of the mask pixels. */
   #snapshot() {
     return new ImageData(new Uint8ClampedArray(this.#pixels.data), this.#pixels.width, this.#pixels.height);
   }
 
-  /**
-   * Draw an image with a new size into a temporary canvas, and read its pixels.
-   * This is the only read of pixels from a canvas, thus the temporary canvas can be on the CPU.
-   * @param {CanvasImageSource} image
-   * @param {number} width
-   * @param {number} height
-   * @returns {ImageData}
-   */
   static #readScaled(image, width, height) {
     const canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     ctx.drawImage(image, 0, 0, width, height);
+    // Only the alpha is data. The canvas gives premultiplied color, so set the color to white.
     const pixels = ctx.getImageData(0, 0, width, height);
-    // The canvas keeps colors multiplied by alpha. Thus a transparent pixel comes back black. Only the alpha is the mask.
     const px = pixels.data;
     for (let i = 0; i < px.length; i += 4) px[i] = px[i + 1] = px[i + 2] = 255;
     return pixels;
   }
 
-  /** The memory of one undo step in bytes. */
   get #snapshotBytes() {
     return this.mask.width * this.mask.height * 4;
   }
 
-  /**
-   * Add an undo step for a change to the mask, and give the changed mask a new version.
-   * @param {ImageData} before  A copy of the mask before the change.
-   */
+  // Call this before the change. The entry stores the old pixels and the old version.
   #pushMask(before) {
     const version = this.#version;
-    // Set the new version before the push. The push updates the toolbar, and the toolbar shows the unsaved state.
     this.#version = ++this.#lastVersion;
     this.#push({ mask: before, version });
   }
 
-  /**
-   * Add an undo step. A new change removes the redo steps.
-   * @param {HistoryEntry} entry
-   */
   #push(entry) {
     this.#undo.push(entry);
 
-    // Remove the oldest steps. The memory limit counts only the mask steps, because a "Show Mask" step is very small.
+    // Drop the oldest entries when there are too many or the snapshots use too much memory.
     const maskLimit = this.mask ? Math.max(1, Math.floor(MAX_HISTORY_BYTES / this.#snapshotBytes)) : Infinity;
     let masks = this.#undo.filter((e) => "mask" in e).length;
     while ((this.#undo.length > MAX_HISTORY) || (masks > maskLimit)) {
@@ -1276,19 +888,12 @@ export class MaskCanvas {
     this.onHistoryChange?.();
   }
 
-  /**
-   * Apply the last entry of one stack. Keep the current state of the same type in the other stack.
-   * @param {HistoryEntry[]} from
-   * @param {HistoryEntry[]} to
-   * @returns {boolean}
-   */
+  // Moves one entry from one stack to the other and puts the current state on the other stack.
   #restore(from, to) {
     if (!from.length) return false;
-    // Ctrl+Z during a stroke stops the stroke. Else the next pointer move paints on the restored mask with old data.
     this.#stroke = null;
     const entry = from.pop();
     if ("mask" in entry) {
-      // Exchange the data objects. A copy is not necessary, because the history entry is not in a stack after this.
       to.push({ mask: this.#pixels, version: this.#version });
       this.#pixels = entry.mask;
       this.#version = entry.version;

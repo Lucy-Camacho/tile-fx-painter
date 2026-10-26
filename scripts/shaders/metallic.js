@@ -18,19 +18,19 @@ export class MetallicShader extends TileFxShader {
     ${this.PERCEIVED_BRIGHTNESS}
 
     // Changes a position in the scene rectangle (from baseMatrix) to the offset from the camera center.
-    // The offset is 1 at the edge of the view: offset = scenePos * viewTransform.xy + viewTransform.zw.
+    // The offset is 1 at the view radius: offset = scenePos * viewTransform.xy + viewTransform.zw.
     uniform vec4 viewTransform;
 
-    // The height of the bumps. A higher value gives a deeper relief.
+    // A higher BUMP gives a deeper relief.
     const float BUMP = 3.0;
     // The distance of the relief samples, in background texture pixels.
     const float RELIEF_STEP = 1.5;
-    // The tilt of the view direction at the edge of the view. A higher value moves the highlights more.
+    // The tilt of the view direction at offset 1. A higher value moves the highlights more.
     const float VIEW_TILT = 0.6;
-    // The movement of the shine band for a camera movement. 0 keeps the band on the metal.
+    // The shift of the shine band for a camera movement. 0 keeps the band on the metal.
     const float BAND_PARALLAX = 0.5;
 
-    // The brightness of the background at a texture UV. The color is premultiplied, thus divide by the alpha.
+    // The background brightness at a texture UV. The color is premultiplied, thus divide by the alpha.
     float baseLuma(vec2 uv) {
       vec4 color = texture(baseSampler, uv);
       return color.a > 0.0 ? perceivedBrightness(color.rgb / color.a) : 0.5;
@@ -41,7 +41,7 @@ export class MetallicShader extends TileFxShader {
       if ( s <= 0.0 ) return vec4(0.0);
 
       // With no background, the metal is flat and of medium brightness.
-      // The normal is in background texture axes. The light turns in the same axes, thus the axes are not important.
+      // The normal uses background texture axes. The light turns in the same axes.
       float luma = 0.5;
       vec3 normal = vec3(0.0, 0.0, 1.0);
       vec2 uv;
@@ -55,7 +55,6 @@ export class MetallicShader extends TileFxShader {
       }
 
       // The eye is above the camera center. Thus a pixel away from the center sees the metal at an angle.
-      // The offset is in scene axes, the same as the normal.
       vec2 offset = ((baseMatrix * vec3(vUvs, 1.0)).xy * viewTransform.xy) + viewTransform.zw;
       vec3 view = normalize(vec3(-offset * VIEW_TILT, 1.0));
 
@@ -65,19 +64,19 @@ export class MetallicShader extends TileFxShader {
       float diffuse = 0.6 + (0.4 * max(dot(normal, light), 0.0));
       float specular = pow(max(dot(reflect(-light, normal), view), 0.0), 32.0);
 
-      // A soft diagonal shine band. One band each 2 grid squares at pattern scale 1.
+      // A soft diagonal shine band. At pattern scale 1, the distance between two bands is about 2 grid squares (about 2.9 along one axis).
       // It moves with the time and with the camera.
       vec2 pos = patternPos();
       float band = fract(((pos.x + pos.y) * 0.35) - (phase * 0.2) + ((offset.x + offset.y) * BAND_PARALLAX)) - 0.5;
       float shine = exp(-(band * band) / 0.0128);
 
-      // More contrast than the map, but a dark map area does not become black, so that it stays metal.
+      // More contrast than the map, but a dark area does not become black.
       float tone = 0.35 + (0.65 * smoothstep(0.1, 0.9, luma));
       vec3 metal = effectColor * tone * diffuse;
-      // The highlights are a mix of white and the tint, as on a real metal.
+      // The highlights mix white and the tint, as on real metal.
       metal += mix(vec3(1.0), effectColor, 0.3) * specular * 0.8;
       metal += mix(vec3(1.0), effectColor, 0.5) * shine * 0.35;
-      // The color must not be more than the alpha, because the output is premultiplied.
+      // The color must not be more than the alpha (s), because the output is premultiplied. Alpha s is at most 1.
       metal = min(metal, vec3(1.0));
       // tintAlpha.a is the mesh alpha, for example 0.5 for a hidden tile.
       return vec4(metal * s, s) * tintAlpha.a;
@@ -88,7 +87,7 @@ export class MetallicShader extends TileFxShader {
   /** @override */
   _preRender(mesh, renderer) {
     super._preRender(mesh, renderer);
-    // The view radius is half of the longer screen side, in scene pixels. One value for both axes, so that the offset does not stretch.
+    // The view radius is half of the longer screen side, in scene pixels. One radius for both axes prevents a stretched offset.
     const { sceneX, sceneY, sceneWidth, sceneHeight } = canvas.dimensions;
     const [screenWidth, screenHeight] = canvas.screenDimensions;
     const { pivot, scale } = canvas.stage;

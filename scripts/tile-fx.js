@@ -5,14 +5,13 @@ import { TileFxShader } from "./shaders/tile-fx-shader.js";
 import { GlowShader } from "./shaders/glow.js";
 import { MetallicShader } from "./shaders/metallic.js";
 
-/** The shader class of each effect. Iridescent Sheen uses the test shader until its step. */
+/** The shader class of each effect. Iridescent uses the test shader because it has no shader of its own. */
 const SHADERS = {
   glow: GlowShader,
   metallic: MetallicShader,
   iridescent: TileFxShader
 };
 
-/** The effect meshes on the canvas, by tile id. */
 const meshes = new Map();
 
 /** The number of the newest sync of each tile. A mask load that is not the newest discards its result. */
@@ -24,10 +23,7 @@ function removeMesh(tileId) {
   meshes.delete(tileId);
 }
 
-/**
- * Make, update, or remove the effect mesh of a tile, from the tile flags.
- * @param {Tile} tile
- */
+/** Make, update, or remove the effect mesh of a tile, from the tile flags. */
 async function syncTile(tile) {
   if (tile.isPreview) return;
   const tileId = tile.document.id;
@@ -87,7 +83,7 @@ Hooks.on("destroyTile", (tile) => {
   syncIds.delete(tile.document.id);
 });
 
-// The primary group destroys its children at teardown. Only the references stay.
+// The primary group destroys the meshes at teardown. Only the references stay.
 Hooks.on("canvasTearDown", () => {
   meshes.clear();
   syncIds.clear();

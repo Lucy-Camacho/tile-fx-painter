@@ -1,13 +1,7 @@
 import { MODULE_ID } from "./main.js";
 
-/** The maximum length in pixels of the longest side of a capture. */
 const MAX_SIZE = 4096;
 
-/**
- * Load an image and wait until the browser can draw it.
- * @param {string} src
- * @returns {Promise<HTMLImageElement>}
- */
 export async function loadImage(src) {
   const img = new Image();
   // The "anonymous" value prevents a tainted canvas when the image is on S3 or a CDN. A tainted canvas cannot give its pixels.

@@ -9,7 +9,7 @@
   padding: 0;
 }
 
-/* The window gets focus for the keyboard shortcuts. The focus outline is not necessary. */
+/* The window gets focus for the keyboard shortcuts. Hide the focus outline. */
 .tile-fx-painter.effect-editor:focus {
   outline: none;
 }
@@ -36,7 +36,6 @@
   border-bottom: 1px solid var(--color-border);
 }
 
-/* Each tool shows only its option group. */
 .tile-fx-painter-editor-options {
   display: flex;
   flex-wrap: wrap;
@@ -78,7 +77,7 @@
   box-shadow: 0 0 4px var(--color-shadow-highlight, var(--color-warm-2));
 }
 
-/* A fixed width stops the controls to the right from moving when the value changes. */
+/* A minimum width stops the controls on the right from moving when the value changes. */
 .tile-fx-painter-editor-value {
   min-width: 2.5em;
   text-align: right;
@@ -89,7 +88,7 @@
   flex: 1;
 }
 
-/* The view must not take its size from the display canvas. The canvas gets its size from the view. */
+/* The view must not take its size from the display canvas. The canvas takes its size from the view. */
 .tile-fx-painter-editor-view {
   position: relative;
   align-items: center;
@@ -97,8 +96,7 @@
   overflow: hidden;
 }
 
-/* The display fills the full view. The zoom and the pan move the image inside the display.
-   "touch-action: none" stops a pen or a finger from scrolling the page during a stroke. */
+/* "touch-action: none" stops a pen or a finger from scrolling the page during a stroke. */
 .tile-fx-painter-editor-view .tile-fx-painter-display {
   position: absolute;
   inset: 0;
@@ -112,7 +110,7 @@
   cursor: grab;
 }
 
-/* This rule comes after "pan-ready", thus it wins during a Space drag. */
+/* This rule must stay after "pan-ready", so that it wins during a Space drag. */
 .tile-fx-painter-editor-view .tile-fx-painter-display.panning {
   cursor: grabbing;
 }

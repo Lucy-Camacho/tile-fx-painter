@@ -1,9 +1,6 @@
 import { MODULE_ID } from "./main.js";
 
-/**
- * The effects that a tile can use. The key is the value of the tile flag "shader".
- * The tile config tab and the canvas code both read this list.
- */
+/** The effects that a tile can use. The key is the value of the tile flag "shader". */
 export const EFFECTS = {
   glow: {
     label: "TILE_FX_PAINTER.Config.Shader.Choices.Glow",
@@ -15,7 +12,7 @@ export const EFFECTS = {
   },
   iridescent: {
     label: "TILE_FX_PAINTER.Config.Shader.Choices.Iridescent",
-    // The color of the dark oil film under the rainbow colors.
+    // The dark film color under the rainbow colors.
     defaultColor: "#1c2230"
   }
 };
@@ -29,8 +26,7 @@ function toNumber(value, fallback) {
 
 /**
  * Read the effect flags of a tile and apply the defaults.
- * An effect id that is not in EFFECTS (for example the old placeholders "ripple" and "dissolve") becomes "none".
- * An empty or invalid color becomes the default color of the effect.
+ * An unknown effect id becomes "none". An empty or invalid color becomes the default color of the effect.
  * @param {TileDocument} tileDocument
  * @returns {{enabled: boolean, effect: string, intensity: number, color: string|null, speed: number, scale: number, mask: string|null}}
  *   The color is null when the effect is "none".

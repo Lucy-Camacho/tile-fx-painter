@@ -29,7 +29,7 @@ async function ensureDirectory(dir) {
     await FilePicker.browse("data", dir);
     return;
   } catch {
-    // The directory does not exist. Make it below.
+    // The directory does not exist.
   }
   const parts = dir.split("/");
   for (let i = 1; i <= parts.length; i++) {
@@ -107,10 +107,8 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
   /** The saved mask of the tile is in the mask. The editor loads it only one time, at the first capture. */
   #maskLoaded = false;
 
-  /** A save is in progress. */
   #saving = false;
 
-  /** The "unsaved changes" dialog is open. */
   #confirmingClose = false;
 
   static PARTS = {
@@ -160,7 +158,6 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     return !!this.tile.collection?.has(this.tile.id) && !!scene?.collection?.has(scene.id);
   }
 
-  /** The mask has changes to save, and no save is in progress. */
   get canSave() {
     return this.mask.isDirty && !this.#saving;
   }
@@ -379,16 +376,14 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /**
-   * Tell if a tool uses a group of tool options.
    * @param {string} tool
-   * @param {string} tools  The tools of the option group, with a space between them.
-   * @returns {boolean}
+   * @param {string} tools  The tools of an option group, with a space between them.
    */
   #toolHasOptions(tool, tools) {
     return tools.split(" ").includes(tool);
   }
 
-  /** Show the values after an undo or redo, and enable or disable the undo, redo, and save buttons. */
+  /** Update the "Show Mask" checkbox (an undo or redo can change it) and the undo, redo, and save buttons. */
   #updateToolbar() {
     const toolbar = this.element?.querySelector(".tile-fx-painter-editor-toolbar");
     if (!toolbar) return;
@@ -450,11 +445,7 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     event.stopPropagation();
   }
 
-  /**
-   * @this {EffectEditor}
-   * @param {PointerEvent} event
-   * @param {HTMLButtonElement} target
-   */
+  /** @this {EffectEditor} */
   static #onSelectTool(event, target) {
     this.#setTool(target.dataset.tool);
   }
@@ -478,7 +469,7 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     for (const group of this.element.querySelectorAll(".tile-fx-painter-editor-options")) {
       group.hidden = !this.#toolHasOptions(tool, group.dataset.tools);
     }
-    // The brush circle shows only for the brush and the eraser. The tool change also removes a shape preview.
+    // Draw again: the brush circle shows only for the brush and the eraser, and a tool change removes a shape preview.
     this.mask.requestDraw();
   }
 
