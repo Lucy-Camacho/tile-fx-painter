@@ -1,3 +1,5 @@
+import { getTileFrame } from "./compat.js";
+
 /**
  * The effect mesh of one tile. It is a direct child of canvas.primary, separate from the tile mesh,
  * because Foundry makes no tile mesh for a tile with no image.
@@ -27,29 +29,29 @@ export class TileFxMesh extends foundry.canvas.primary.PrimarySpriteMesh {
    * The mesh ignores the fit, scale, and mirror of the tile image, because the mask uses the frame.
    */
   refreshTransform(tileDocument) {
-    const { x, y, width, height, rotation } = tileDocument;
+    const frame = getTileFrame(tileDocument);
+    const { centerX, centerY, width, height, rotation } = frame;
+    // The mesh turns around the frame center. This gives the same frame as a v14 tile, which turns around its anchor point.
     this.anchor.set(0.5, 0.5);
-    this.position.set(x + (width / 2), y + (height / 2));
+    this.position.set(centerX, centerY);
     this.angle = rotation;
     this.resize(width, height);
     this.tileSize.width = width;
     this.tileSize.height = height;
-    this.#refreshBaseMatrix(tileDocument);
+    this.#refreshBaseMatrix(frame);
   }
 
   /**
    * Use the same math as captureBackground:
    * scene point = frame center + rotate(rotation) × ((u − 0.5) × width, (v − 0.5) × height).
    * The scene rectangle (sceneX, sceneY, sceneWidth, sceneHeight) is where Foundry draws the background image.
+   * @param {ReturnType<import("./compat.js").getTileFrame>} frame
    */
-  #refreshBaseMatrix(tileDocument) {
-    const { x, y, width, height, rotation } = tileDocument;
+  #refreshBaseMatrix({ centerX, centerY, width, height, rotation }) {
     const { sceneX, sceneY, sceneWidth, sceneHeight } = canvas.dimensions;
     const radians = Math.toRadians(rotation);
     const cos = Math.cos(radians);
     const sin = Math.sin(radians);
-    const centerX = x + (width / 2);
-    const centerY = y + (height / 2);
     const m = this.baseMatrix;
     // Column 0 is one unit of u. Column 1 is one unit of v. Column 2 is the position of the mask UV (0, 0).
     m[0] = (cos * width) / sceneWidth;

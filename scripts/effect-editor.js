@@ -1,6 +1,7 @@
 import { MODULE_ID } from "./main.js";
 import { captureBackground, loadImage } from "./background-capture.js";
 import { MaskCanvas } from "./mask-canvas.js";
+import { changesTileFrame } from "./compat.js";
 
 const { ApplicationV2, DialogV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -94,9 +95,6 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     add: "TILE_FX_PAINTER.Editor.SelectAdd",
     subtract: "TILE_FX_PAINTER.Editor.SelectSubtract"
   };
-
-  /** The tile fields that change the area under the tile. A change to one of them makes a new capture necessary. */
-  static CAPTURE_FIELDS = ["x", "y", "width", "height", "rotation"];
 
   /**
    * A counter for the captures. A capture can take a long time. Only the result of the last capture goes into the view.
@@ -501,7 +499,7 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
 
 // The capture uses the saved tile data. Capture again when the area under the tile changes.
 Hooks.on("updateTile", (tile, changes) => {
-  if (!EffectEditor.CAPTURE_FIELDS.some((field) => field in changes)) return;
+  if (!changesTileFrame(changes)) return;
   foundry.applications.instances.get(EffectEditor.getId(tile))?.recapture();
 });
 

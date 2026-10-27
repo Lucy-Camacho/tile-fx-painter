@@ -1,4 +1,5 @@
 import { MODULE_ID } from "./main.js";
+import { getTileFrame } from "./compat.js";
 
 const MAX_SIZE = 4096;
 
@@ -21,7 +22,7 @@ export async function loadImage(src) {
  */
 export async function captureBackground(tile) {
   const scene = tile.parent;
-  const src = scene?.background.src;
+  const src = scene?.background?.src;
   if (!src) return null;
 
   if (foundry.helpers.media.VideoHelper.hasVideoExtension(src)) {
@@ -40,22 +41,24 @@ export async function captureBackground(tile) {
   const { sceneX, sceneY, sceneWidth, sceneHeight } = scene.dimensions;
 
   // Keep the resolution of the source image. The image can have a different size than the scene.
+  const frame = getTileFrame(tile);
   let scale = Math.max(img.naturalWidth / sceneWidth, img.naturalHeight / sceneHeight);
-  const longest = Math.max(tile.width, tile.height) * scale;
+  const longest = Math.max(frame.width, frame.height) * scale;
   if (longest > MAX_SIZE) scale *= MAX_SIZE / longest;
 
   const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(tile.width * scale));
-  canvas.height = Math.max(1, Math.round(tile.height * scale));
+  canvas.width = Math.max(1, Math.round(frame.width * scale));
+  canvas.height = Math.max(1, Math.round(frame.height * scale));
 
-  // Change output pixels to scene coordinates. Foundry turns a tile around its center.
+  // Change output pixels to scene coordinates. A turn around the frame center gives the same frame as the Foundry
+  // rotation, also in v14, where the tile turns around its anchor point.
   // The capture turns the scene in the opposite direction, thus the image edges align with the tile edges.
   // Areas of the tile outside the scene rectangle stay transparent.
   const ctx = canvas.getContext("2d");
   ctx.translate(canvas.width / 2, canvas.height / 2);
-  ctx.scale(canvas.width / tile.width, canvas.height / tile.height);
-  ctx.rotate(-Math.toRadians(tile.rotation));
-  ctx.translate(-(tile.x + tile.width / 2), -(tile.y + tile.height / 2));
+  ctx.scale(canvas.width / frame.width, canvas.height / frame.height);
+  ctx.rotate(-Math.toRadians(frame.rotation));
+  ctx.translate(-frame.centerX, -frame.centerY);
   ctx.drawImage(img, sceneX, sceneY, sceneWidth, sceneHeight);
   return canvas;
 }
