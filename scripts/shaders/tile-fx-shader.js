@@ -18,6 +18,7 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
     gridSize: 100,
     baseSampler: null,
     baseMatrix: [1, 0, 0, 0, 1, 0, 0, 0, 1],
+    sceneMatrix: [1, 0, 0, 0, 1, 0, 0, 0, 1],
     baseFrame: [0, 0, 1, 1],
     hasBase: 0,
     baseTexelSize: [1, 1]
@@ -25,8 +26,9 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
 
   /**
    * The uniforms and the GLSL helpers for all effect shaders.
-   * - baseMatrix changes a mask UV to a position in the scene rectangle, from (0, 0) to (1, 1).
-   * - baseFrame changes a position in the scene rectangle to a UV of the background texture.
+   * - baseMatrix changes a mask UV to a position in the background image, from (0, 0) to (1, 1).
+   * - sceneMatrix changes a mask UV to a position in the scene rectangle, from (0, 0) to (1, 1).
+   * - baseFrame changes a position in the background image to a UV of the background texture.
    *   It is (x, y, width, height) of the texture frame in UV units.
    * - baseTexelSize is the size of one background texture pixel in UV units.
    */
@@ -39,16 +41,17 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
     uniform float gridSize;
     uniform sampler2D baseSampler;
     uniform mat3 baseMatrix;
+    uniform mat3 sceneMatrix;
     uniform vec4 baseFrame;
     uniform float hasBase;
     uniform vec2 baseTexelSize;
 
     // Change a mask UV to a background texture UV.
-    // Returns false outside the scene rectangle, or when the scene has no background image.
+    // Returns false outside the background image, or when the tile has no background image.
     bool baseUv(vec2 maskUv, out vec2 uv) {
-      vec2 scenePos = (baseMatrix * vec3(maskUv, 1.0)).xy;
-      uv = baseFrame.xy + (scenePos * baseFrame.zw);
-      return (hasBase > 0.5) && all(greaterThanEqual(scenePos, vec2(0.0))) && all(lessThanEqual(scenePos, vec2(1.0)));
+      vec2 imagePos = (baseMatrix * vec3(maskUv, 1.0)).xy;
+      uv = baseFrame.xy + (imagePos * baseFrame.zw);
+      return (hasBase > 0.5) && all(greaterThanEqual(imagePos, vec2(0.0))) && all(lessThanEqual(imagePos, vec2(1.0)));
     }
 
     // The premultiplied background color under a mask UV. It is vec4(0.0) when baseUv returns false.
@@ -106,11 +109,11 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
     uniforms.tileSize[1] = tileSize.height;
     uniforms.gridSize = canvas.dimensions.size;
     uniforms.baseMatrix = mesh.baseMatrix;
+    uniforms.sceneMatrix = mesh.sceneMatrix;
 
-    // Read the background each frame, because Foundry sends no event when its texture changes.
-    const background = canvas.primary.background;
-    const texture = background?.texture;
-    const hasBase = !!background?.visible && !!texture?.valid
+    // Check the texture each frame, because the Foundry texture cache can unload it.
+    const texture = mesh.backgroundTexture;
+    const hasBase = !!texture?.valid && !!texture.baseTexture && !texture.baseTexture.destroyed
       && (texture !== PIXI.Texture.EMPTY) && (texture !== PIXI.Texture.WHITE);
     uniforms.hasBase = hasBase ? 1 : 0;
     uniforms.baseSampler = hasBase ? texture : PIXI.Texture.EMPTY;

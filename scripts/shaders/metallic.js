@@ -17,7 +17,7 @@ export class MetallicShader extends TileFxShader {
     ${this.CONSTANTS}
     ${this.PERCEIVED_BRIGHTNESS}
 
-    // Changes a position in the scene rectangle (from baseMatrix) to the offset from the camera center.
+    // Changes a position in the scene rectangle (from sceneMatrix) to the offset from the camera center.
     // The offset is 1 at the view radius: offset = scenePos * viewTransform.xy + viewTransform.zw.
     uniform vec4 viewTransform;
 
@@ -56,7 +56,7 @@ export class MetallicShader extends TileFxShader {
       }
 
       // The eye is above the camera center. Thus a pixel away from the center sees the metal at an angle.
-      vec2 offset = ((baseMatrix * vec3(vUvs, 1.0)).xy * viewTransform.xy) + viewTransform.zw;
+      vec2 offset = ((sceneMatrix * vec3(vUvs, 1.0)).xy * viewTransform.xy) + viewTransform.zw;
       vec3 view = normalize(vec3(-offset * VIEW_TILT, 1.0));
 
       // A light that turns slowly around the area.

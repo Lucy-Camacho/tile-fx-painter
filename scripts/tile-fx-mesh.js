@@ -1,4 +1,5 @@
 import { getTileFrame } from "./compat.js";
+import { getBackgroundScale } from "./background-capture.js";
 
 /**
  * The effect mesh of one tile. It is a direct child of canvas.primary, separate from the tile mesh,
@@ -18,11 +19,40 @@ export class TileFxMesh extends foundry.canvas.primary.PrimarySpriteMesh {
   /** The size of the tile frame in scene pixels. */
   tileSize = { width: 1, height: 1 };
 
-  /** The mat3 (column-major) that changes a mask UV to a position in the scene rectangle, from (0, 0) to (1, 1). */
+  /**
+   * The mat3 (column-major) that changes a mask UV to a position in the background image, from (0, 0) to (1, 1).
+   * It is the identity if there is no background texture.
+   */
   baseMatrix = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1]);
+
+  /** The mat3 (column-major) that changes a mask UV to a position in the scene rectangle, from (0, 0) to (1, 1). */
+  sceneMatrix = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1]);
 
   /** The path of the current mask texture. A different path causes a new load. */
   maskSrc = null;
+
+  /**
+   * The texture of the background image under the tile, or null.
+   * The mesh loads it, because in v14 Foundry does not draw the background of a level that the viewed level does not show.
+   */
+  backgroundTexture = null;
+
+  /** The background source of backgroundTexture, as JSON. A different source causes a new load. */
+  backgroundKey = null;
+
+  /** @type {ReturnType<import("./compat.js").getBackgroundSource>} */
+  #background = null;
+
+  /**
+   * Set the background image under the tile. Call refreshTransform after this, because the base matrix uses it.
+   * @param {ReturnType<import("./compat.js").getBackgroundSource>} source
+   * @param {PIXI.Texture|null} texture  The texture of source.src.
+   */
+  setBackground(source, texture) {
+    this.#background = source;
+    this.backgroundTexture = texture;
+    this.backgroundKey = JSON.stringify(source);
+  }
 
   /**
    * Fit the mesh to the tile frame.
@@ -38,28 +68,58 @@ export class TileFxMesh extends foundry.canvas.primary.PrimarySpriteMesh {
     this.resize(width, height);
     this.tileSize.width = width;
     this.tileSize.height = height;
-    this.#refreshBaseMatrix(frame);
+    this.#refreshMatrices(frame);
   }
 
   /**
    * Use the same math as captureBackground:
    * scene point = frame center + rotate(rotation) × ((u − 0.5) × width, (v − 0.5) × height).
-   * The scene rectangle (sceneX, sceneY, sceneWidth, sceneHeight) is where Foundry draws the background image.
+   * The background image is a sprite with the transform of getBackgroundSource, as the Foundry background mesh.
    * @param {ReturnType<import("./compat.js").getTileFrame>} frame
    */
-  #refreshBaseMatrix({ centerX, centerY, width, height, rotation }) {
-    const { sceneX, sceneY, sceneWidth, sceneHeight } = canvas.dimensions;
+  #refreshMatrices({ centerX, centerY, width, height, rotation }) {
     const radians = Math.toRadians(rotation);
     const cos = Math.cos(radians);
     const sin = Math.sin(radians);
-    const m = this.baseMatrix;
+    // The scene vectors of one unit of u and one unit of v, and the scene point of the mask UV (0, 0).
+    const ux = cos * width;
+    const uy = sin * width;
+    const vx = -sin * height;
+    const vy = cos * height;
+    const ox = centerX - (0.5 * ux) - (0.5 * vx);
+    const oy = centerY - (0.5 * uy) - (0.5 * vy);
+
     // Column 0 is one unit of u. Column 1 is one unit of v. Column 2 is the position of the mask UV (0, 0).
-    m[0] = (cos * width) / sceneWidth;
-    m[1] = (sin * width) / sceneHeight;
-    m[3] = (-sin * height) / sceneWidth;
-    m[4] = (cos * height) / sceneHeight;
-    m[6] = (centerX - (0.5 * cos * width) + (0.5 * sin * height) - sceneX) / sceneWidth;
-    m[7] = (centerY - (0.5 * sin * width) - (0.5 * cos * height) - sceneY) / sceneHeight;
+    const { sceneX, sceneY, sceneWidth, sceneHeight } = canvas.dimensions;
+    const s = this.sceneMatrix;
+    s[0] = ux / sceneWidth;
+    s[1] = uy / sceneHeight;
+    s[3] = vx / sceneWidth;
+    s[4] = vy / sceneHeight;
+    s[6] = (ox - sceneX) / sceneWidth;
+    s[7] = (oy - sceneY) / sceneHeight;
+
+    const m = this.baseMatrix;
+    m.set([1, 0, 0, 0, 1, 0, 0, 0, 1]);
+    const source = this.#background;
+    const texture = this.backgroundTexture;
+    if (!source || !texture?.width || !texture.height) return;
+    const { scaleX, scaleY } = getBackgroundScale(source, texture.width, texture.height);
+    if (!scaleX || !scaleY) return;
+    // The inverse of the sprite transform: turn back by the image rotation, then divide by the image size in the scene.
+    const imageRadians = Math.toRadians(source.rotation);
+    const imageCos = Math.cos(imageRadians);
+    const imageSin = Math.sin(imageRadians);
+    const imageWidth = scaleX * texture.width;
+    const imageHeight = scaleY * texture.height;
+    const toImageX = (x, y) => ((imageCos * x) + (imageSin * y)) / imageWidth;
+    const toImageY = (x, y) => ((-imageSin * x) + (imageCos * y)) / imageHeight;
+    m[0] = toImageX(ux, uy);
+    m[1] = toImageY(ux, uy);
+    m[3] = toImageX(vx, vy);
+    m[4] = toImageY(vx, vy);
+    m[6] = toImageX(ox - source.x, oy - source.y) + source.anchorX;
+    m[7] = toImageY(ox - source.x, oy - source.y) + source.anchorY;
   }
 
   /**
