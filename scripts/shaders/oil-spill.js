@@ -81,9 +81,9 @@ export class OilSpillShader extends TileFxShader {
       // Near the edge of the background, the shifted sample can be outside it.
       if ( base.a <= 0.0 ) base = sampleBase(vUvs);
 
-      // The background color is premultiplied, thus divide by the alpha. With no background, the oil is the effect color.
+      // With no background, the oil is the effect color.
       vec3 oil = effectColor;
-      if ( base.a > 0.0 ) oil = mix(base.rgb / base.a * DARKEN, effectColor, 0.5);
+      if ( base.a > 0.0 ) oil = mix(unpremultiply(base) * DARKEN, effectColor, 0.5);
 
       vec3 color = oil + (rainbow * FILM * sheen) + (vec3(SPECULAR) * specular);
       // The color must not be more than the alpha (s), because the output is premultiplied. Alpha s is at most 1.

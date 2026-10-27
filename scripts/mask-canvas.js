@@ -439,7 +439,7 @@ export class MaskCanvas {
   }
 
   // Scanline fill. Each stack entry is one pixel. The loop expands it to a full run in its row,
-  // then pushes one seed for each matching run in the rows above and below.
+  // then pushes one seed for each run that matches in the rows above and below.
   static #floodFill(width, height, start, match) {
     const selected = new Uint8Array(width * height);
     const stack = [start];
@@ -527,7 +527,7 @@ export class MaskCanvas {
         if (!a) continue;
         const o = (row + x) * 4;
         const old = px[o + 3];
-        // Integer alpha blend with rounding. Add: "over" with white. Subtract: scale the old alpha down.
+        // Integer alpha blend, rounded to the nearest value. Add: "over" with white. Subtract: scale the old alpha down.
         const value = subtract ? (((old * (255 - a)) + 127) / 255) | 0 : old + ((((a * (255 - old)) + 127) / 255) | 0);
         if (value === old) continue;
         px[o] = px[o + 1] = px[o + 2] = 255;

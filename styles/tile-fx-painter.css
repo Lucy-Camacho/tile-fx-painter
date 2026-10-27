@@ -77,7 +77,7 @@
   box-shadow: 0 0 4px var(--color-shadow-highlight, var(--color-warm-2));
 }
 
-/* A minimum width stops the controls on the right from moving when the value changes. */
+/* A minimum width keeps the controls on the right at the same position when the value changes. */
 .tile-fx-painter-editor-value {
   min-width: 2.5em;
   text-align: right;
@@ -96,7 +96,7 @@
   overflow: hidden;
 }
 
-/* "touch-action: none" stops a pen or a finger from scrolling the page during a stroke. */
+/* With "touch-action: none", a pen or a finger does not scroll the page during a stroke. */
 .tile-fx-painter-editor-view .tile-fx-painter-display {
   position: absolute;
   inset: 0;

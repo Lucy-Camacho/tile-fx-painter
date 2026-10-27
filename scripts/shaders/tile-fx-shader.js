@@ -58,6 +58,18 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
       return texture(baseSampler, uv);
     }
 
+    // Keep a background texture UV half a pixel inside the texture frame.
+    // Thus a sample near the scene edge does not read the pixels next to the frame.
+    vec2 clampBaseUv(vec2 uv) {
+      vec2 halfTexel = baseTexelSize * 0.5;
+      return clamp(uv, baseFrame.xy + halfTexel, baseFrame.xy + baseFrame.zw - halfTexel);
+    }
+
+    // The straight (not premultiplied) color of a premultiplied color. It is black when the alpha is 0.
+    vec3 unpremultiply(vec4 color) {
+      return color.a > 0.0 ? color.rgb / color.a : vec3(0.0);
+    }
+
     // The mask alpha times the intensity. It can be more than 1.
     float strength() {
       return texture(sampler, vUvs).a * intensity;
@@ -69,20 +81,10 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
     }
   `;
 
-  /**
-   * The test effect: the inverted background color, plus a diagonal stripe that moves with the phase.
-   * The stripe moves one pattern unit each second at speed 1.
-   */
+  /** Each subclass overrides this field. The base class shows no effect. */
   static _effectShader = `
     vec4 _main() {
-      float s = min(strength(), 1.0);
-      vec4 base = sampleBase(vUvs);
-      // This formula inverts a premultiplied color. Outside the background, the color stays transparent.
-      vec4 color = vec4(base.a - base.rgb, base.a);
-      vec2 pos = patternPos();
-      float stripe = step(0.85, fract(pos.x + pos.y - phase));
-      color = mix(color, vec4(1.0), stripe * 0.8);
-      return color * s * tintAlpha.a;
+      return vec4(0.0);
     }
   `;
 

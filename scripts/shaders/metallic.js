@@ -30,10 +30,11 @@ export class MetallicShader extends TileFxShader {
     // The shift of the shine band for a camera movement. 0 keeps the band on the metal.
     const float BAND_PARALLAX = 0.5;
 
-    // The background brightness at a texture UV. The color is premultiplied, thus divide by the alpha.
+    // The background brightness at a texture UV. The UV stays inside the texture frame,
+    // so that the relief samples at the scene edge do not make a false ridge.
     float baseLuma(vec2 uv) {
-      vec4 color = texture(baseSampler, uv);
-      return color.a > 0.0 ? perceivedBrightness(color.rgb / color.a) : 0.5;
+      vec4 color = texture(baseSampler, clampBaseUv(uv));
+      return color.a > 0.0 ? perceivedBrightness(unpremultiply(color)) : 0.5;
     }
 
     vec4 _main() {
