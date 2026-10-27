@@ -1,5 +1,5 @@
 import { MODULE_ID } from "./main.js";
-import { getTileFrame } from "./compat.js";
+import { getBackgroundSource, getTileFrame } from "./compat.js";
 
 const MAX_SIZE = 4096;
 
@@ -13,6 +13,28 @@ export async function loadImage(src) {
 }
 
 /**
+ * Get the scale of a background image in the scene, with the same math as PrimarySpriteMesh#resize.
+ * @param {object} source  The background source from getBackgroundSource.
+ * @param {number} imageWidth  The size of the image in pixels.
+ * @param {number} imageHeight
+ * @returns {{scaleX: number, scaleY: number}}  Scene pixels for each image pixel. A negative value mirrors the image.
+ */
+export function getBackgroundScale({ width, height, fit, scaleX, scaleY }, imageWidth, imageHeight) {
+  const fitX = width / imageWidth;
+  const fitY = height / imageHeight;
+  let sx;
+  let sy;
+  switch (fit) {
+    case "cover": sx = sy = Math.max(fitX, fitY); break;
+    case "contain": sx = sy = Math.min(fitX, fitY); break;
+    case "width": sx = sy = fitX; break;
+    case "height": sx = sy = fitY; break;
+    default: sx = fitX; sy = fitY;
+  }
+  return { scaleX: sx * scaleX, scaleY: sy * scaleY };
+}
+
+/**
  * Capture the part of the scene background image that a tile covers.
  * The function uses only the document data, not the canvas. Thus it also works for a scene that is not on the canvas.
  * The capture follows the tile rotation. The top edge of the capture is the top edge of the tile.
@@ -21,9 +43,9 @@ export async function loadImage(src) {
  * @throws {Error}  If the image does not load.
  */
 export async function captureBackground(tile) {
-  const scene = tile.parent;
-  const src = scene?.background?.src;
-  if (!src) return null;
+  const source = getBackgroundSource(tile);
+  if (!source) return null;
+  const { src } = source;
 
   if (foundry.helpers.media.VideoHelper.hasVideoExtension(src)) {
     ui.notifications.warn("TILE_FX_PAINTER.Editor.VideoNotSupported", { localize: true });
@@ -37,12 +59,14 @@ export async function captureBackground(tile) {
     throw new Error(`${MODULE_ID} | Cannot load the scene background "${src}"`, { cause: err });
   }
 
-  // sceneX and sceneY already include the background offset. Foundry stretches the image to this rectangle.
-  const { sceneX, sceneY, sceneWidth, sceneHeight } = scene.dimensions;
+  const { naturalWidth, naturalHeight } = img;
+  const { scaleX, scaleY } = getBackgroundScale(source, naturalWidth, naturalHeight);
+  // A level texture scale of 0 makes the image invisible on the canvas.
+  if (!scaleX || !scaleY) return null;
 
   // Keep the resolution of the source image. The image can have a different size than the scene.
   const frame = getTileFrame(tile);
-  let scale = Math.max(img.naturalWidth / sceneWidth, img.naturalHeight / sceneHeight);
+  let scale = Math.max(1 / Math.abs(scaleX), 1 / Math.abs(scaleY));
   const longest = Math.max(frame.width, frame.height) * scale;
   if (longest > MAX_SIZE) scale *= MAX_SIZE / longest;
 
@@ -53,12 +77,18 @@ export async function captureBackground(tile) {
   // Change output pixels to scene coordinates. A turn around the frame center gives the same frame as the Foundry
   // rotation, also in v14, where the tile turns around its anchor point.
   // The capture turns the scene in the opposite direction, thus the image edges align with the tile edges.
-  // Areas of the tile outside the scene rectangle stay transparent.
+  // Areas of the tile outside the image stay transparent.
   const ctx = canvas.getContext("2d");
   ctx.translate(canvas.width / 2, canvas.height / 2);
   ctx.scale(canvas.width / frame.width, canvas.height / frame.height);
   ctx.rotate(-Math.toRadians(frame.rotation));
   ctx.translate(-frame.centerX, -frame.centerY);
-  ctx.drawImage(img, sceneX, sceneY, sceneWidth, sceneHeight);
+
+  // Change image pixels to scene coordinates, in the same order as the PIXI transform of the background sprite:
+  // position, rotation, scale. The anchor point of the image goes to (x, y).
+  ctx.translate(source.x, source.y);
+  ctx.rotate(Math.toRadians(source.rotation));
+  ctx.scale(scaleX, scaleY);
+  ctx.drawImage(img, -source.anchorX * naturalWidth, -source.anchorY * naturalHeight);
   return canvas;
 }

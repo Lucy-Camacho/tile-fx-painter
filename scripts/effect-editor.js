@@ -1,7 +1,7 @@
 import { MODULE_ID } from "./main.js";
 import { captureBackground, loadImage } from "./background-capture.js";
 import { MaskCanvas } from "./mask-canvas.js";
-import { changesTileFrame } from "./compat.js";
+import { changesTileFrame, getBackgroundSource } from "./compat.js";
 
 const { ApplicationV2, DialogV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -101,6 +101,13 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
    * @type {number}
    */
   #captureId = 0;
+
+  /**
+   * The background source of the last capture, as JSON. A scene or level update compares it, and captures again only
+   * if the background under the tile changed.
+   * @type {string}
+   */
+  #backgroundKey = "";
 
   /** The saved mask of the tile is in the mask. The editor loads it only one time, at the first capture. */
   #maskLoaded = false;
@@ -280,6 +287,7 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
    */
   async recapture() {
     const captureId = ++this.#captureId;
+    this.#backgroundKey = JSON.stringify(getBackgroundSource(this.tile));
     // Load the saved mask at the same time as the capture. The mask gets its size from the capture, thus the load waits for it.
     const savedMask = this.#maskLoaded ? null : this.#loadSavedMask();
 
@@ -311,6 +319,13 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
       hint.textContent = game.i18n.localize(message);
       view.replaceChildren(hint);
     }
+  }
+
+  /**
+   * Capture again if the background image under the tile, or its placement, changed after the last capture.
+   */
+  refreshBackground() {
+    if (JSON.stringify(getBackgroundSource(this.tile)) !== this.#backgroundKey) this.recapture();
   }
 
   /**
@@ -497,18 +512,44 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 }
 
+/**
+ * @param {TileDocument} tile
+ * @returns {EffectEditor|undefined}  The open editor of the tile.
+ */
+function getEditor(tile) {
+  return foundry.applications.instances.get(EffectEditor.getId(tile));
+}
+
 // The capture uses the saved tile data. Capture again when the area under the tile changes.
+// A change of the tile levels (v14) can change the background image.
 Hooks.on("updateTile", (tile, changes) => {
-  if (!changesTileFrame(changes)) return;
-  foundry.applications.instances.get(EffectEditor.getId(tile))?.recapture();
+  const editor = getEditor(tile);
+  if (!editor) return;
+  if (changesTileFrame(changes)) editor.recapture();
+  else editor.refreshBackground();
 });
+
+/**
+ * Capture again in the editors of a scene, if the background under their tile changed.
+ * @param {Scene|null} scene
+ */
+function refreshSceneEditors(scene) {
+  scene?.tiles.forEach((tile) => getEditor(tile)?.refreshBackground());
+}
+
+// A scene update can change the v13 background or the scene rectangle. A level update can change the v14 background.
+// Foundry v13 has no levels, thus it does not call the level hooks.
+Hooks.on("updateScene", (scene) => refreshSceneEditors(scene));
+for (const hook of ["createLevel", "updateLevel", "deleteLevel"]) {
+  Hooks.on(hook, (level) => refreshSceneEditors(level.parent));
+}
 
 /**
  * Close the editor of a deleted tile without a question. The editor cannot save the mask of a deleted tile.
  * @param {TileDocument} tile
  */
 function discardEditor(tile) {
-  foundry.applications.instances.get(EffectEditor.getId(tile))?.close({ discard: true });
+  getEditor(tile)?.close({ discard: true });
 }
 
 Hooks.on("deleteTile", (tile) => discardEditor(tile));
@@ -519,5 +560,5 @@ Hooks.on("deleteScene", (scene) => scene.tiles.forEach(discardEditor));
 // The editor is a part of the tile sheet for the user. Close it with the sheet.
 // "Update Tile" also closes the sheet, thus it also closes the editor.
 Hooks.on("closeTileConfig", (app) => {
-  foundry.applications.instances.get(EffectEditor.getId(app.document))?.close();
+  getEditor(app.document)?.close();
 });
