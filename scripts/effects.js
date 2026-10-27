@@ -10,8 +10,8 @@ export const EFFECTS = {
     label: "TILE_FX_PAINTER.Config.Shader.Choices.Metallic",
     defaultColor: "#c9d1d9"
   },
-  iridescent: {
-    label: "TILE_FX_PAINTER.Config.Shader.Choices.Iridescent",
+  oilSpill: {
+    label: "TILE_FX_PAINTER.Config.Shader.Choices.OilSpill",
     // The dark film color under the rainbow colors.
     defaultColor: "#1c2230"
   }

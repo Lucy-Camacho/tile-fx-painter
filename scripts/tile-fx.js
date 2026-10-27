@@ -1,15 +1,15 @@
 import { MODULE_ID } from "./main.js";
 import { getEffectSettings } from "./effects.js";
 import { TileFxMesh } from "./tile-fx-mesh.js";
-import { TileFxShader } from "./shaders/tile-fx-shader.js";
 import { GlowShader } from "./shaders/glow.js";
 import { MetallicShader } from "./shaders/metallic.js";
+import { OilSpillShader } from "./shaders/oil-spill.js";
 
-/** The shader class of each effect. Iridescent uses the test shader because it has no shader of its own. */
+/** The shader class of each effect. */
 const SHADERS = {
   glow: GlowShader,
   metallic: MetallicShader,
-  iridescent: TileFxShader
+  oilSpill: OilSpillShader
 };
 
 const meshes = new Map();
