@@ -36,11 +36,12 @@
   border-bottom: 1px solid var(--color-border);
 }
 
+/* The gap between the controls is larger than the gap in a label, so that each value clearly belongs to its own slider. */
 .tile-fx-painter-editor-options {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem;
+  gap: 1.25rem;
 }
 
 .tile-fx-painter-editor-options[hidden] {
@@ -77,10 +78,14 @@
   box-shadow: 0 0 4px var(--color-shadow-highlight, var(--color-warm-2));
 }
 
-/* A minimum width keeps the controls on the right at the same position when the value changes. */
+/*
+ * A fixed width keeps the controls on the right at the same position when the value changes.
+ * The value is left-aligned, so that it stays next to its own slider.
+ */
 .tile-fx-painter-editor-value {
-  min-width: 2.5em;
-  text-align: right;
+  flex: none;
+  width: 3em;
+  text-align: left;
   font-variant-numeric: tabular-nums;
 }
 
