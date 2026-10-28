@@ -53,10 +53,13 @@
     </div>
 
     {{#if canOpenEditor}}
-    <button type="button" class="tile-fx-painter-open-editor">
+    <button type="button" class="tile-fx-painter-open-editor" {{#unless tileCreated}}disabled{{/unless}}>
       <i class="fa-solid fa-pen-ruler" inert></i>
       <span>{{localize "TILE_FX_PAINTER.Config.OpenEditor.Label"}}</span>
     </button>
+    {{#unless tileCreated}}
+    <p class="hint">{{localize "TILE_FX_PAINTER.Config.OpenEditor.NotCreated"}}</p>
+    {{/unless}}
     {{/if}}
   </fieldset>
 </div>

@@ -46,7 +46,9 @@ Hooks.on("renderTileConfig", async (app, element) => {
     scaleId: `${idPrefix}-scale`,
     scale: settings.scale,
     // The editor saves the mask as an uploaded file. Users who cannot upload cannot use it.
-    canOpenEditor: game.user.can("FILES_UPLOAD")
+    canOpenEditor: game.user.can("FILES_UPLOAD"),
+    // "Create Tile" closes the sheet, thus the button stays disabled until the user opens the sheet of the created tile.
+    tileCreated: EffectEditor.isCreated(app.document)
   });
 
   // A re-render keeps the elements that are not application parts. Remove the old tab after the await, so that two quick renders do not add two tabs.

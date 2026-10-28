@@ -20,6 +20,19 @@ function getMaskDirectory() {
 }
 
 /**
+ * Get the name of the mask folder of a scene, in the format "<scene name>(<scene id>)".
+ * The id keeps the folder unique when two scenes have the same name.
+ * @param {Scene} scene
+ * @returns {string}
+ */
+function getSceneFolder(scene) {
+  // Windows refuses the characters <>:"/\|?* and control characters, and a name that ends with a dot or a space.
+  // The server decodes the path with decodeURIComponent, thus a "%" can change the path or cause an error.
+  const name = scene.name.replace(/[<>:"/\\|?*%\x00-\x1f]/g, "").trim().replace(/[. ]+$/, "");
+  return `${name}(${scene.id})`;
+}
+
+/**
  * Make a directory in the user data, and each parent directory that does not exist.
  * @param {string} dir  A path without a "/" at the start or the end.
  * @returns {Promise<void>}
@@ -132,11 +145,26 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /**
+   * Tell if a tile is in its scene.
+   * After a drag on the canvas, the tile sheet shows a preview tile with a null id until the user clicks "Create Tile".
+   * The editor cannot save a mask for this tile, because the file name and the "mask" flag need the tile id.
+   * @param {TileDocument} tile
+   * @returns {boolean}
+   */
+  static isCreated(tile) {
+    return !!tile.id && !!tile.collection?.has(tile.id);
+  }
+
+  /**
    * Bring the open editor of a tile to the front, or open a new editor.
    * @param {TileDocument} tile
-   * @returns {EffectEditor}
+   * @returns {EffectEditor|null}  The editor, or null if the tile is not created.
    */
   static open(tile) {
+    if (!EffectEditor.isCreated(tile)) {
+      ui.notifications.warn("TILE_FX_PAINTER.Config.OpenEditor.NotCreated", { localize: true });
+      return null;
+    }
     const existing = foundry.applications.instances.get(EffectEditor.getId(tile));
     if (existing) {
       existing.bringToFront();
@@ -331,16 +359,19 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /**
-   * Save the mask as a PNG file in the mask directory, and keep the file path in the tile flag "mask".
+   * Save the mask as a PNG file in the scene folder of the mask directory, and keep the file path in the tile flag "mask".
+   * If the scene name changes, the next save goes into a new folder. The old file stays, and the tile uses the new file.
    * @returns {Promise<boolean>}  True if the editor saved the mask.
    */
   async save() {
     if (!this.canSave || !this.mask.mask) return false;
-    const dir = getMaskDirectory();
-    if (dir === null) {
+    const root = getMaskDirectory();
+    if (root === null) {
       ui.notifications.error("TILE_FX_PAINTER.Editor.InvalidDirectory", { localize: true });
       return false;
     }
+    const folder = getSceneFolder(this.tile.parent);
+    const dir = root ? `${root}/${folder}` : folder;
     this.#saving = true;
     this.#updateToolbar();
     try {
@@ -352,7 +383,7 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
       if (!blob) throw new Error(`${MODULE_ID} | The mask canvas did not give a PNG file`);
       const file = new File([blob], `${this.tile.parent.id}-${this.tile.id}.png`, { type: "image/png" });
 
-      if (dir) await ensureDirectory(dir);
+      await ensureDirectory(dir);
       const FilePicker = foundry.applications.apps.FilePicker.implementation;
       const result = await FilePicker.upload("data", dir, file, {}, { notify: false });
       if (!result?.path) throw new Error(`${MODULE_ID} | The upload of "${file.name}" to "${dir}" failed`);

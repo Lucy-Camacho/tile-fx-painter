@@ -39,7 +39,8 @@
         "Hint": "The size of the effect pattern. At 1, one pattern unit is one grid square."
       },
       "OpenEditor": {
-        "Label": "Open Effect Editor"
+        "Label": "Open Effect Editor",
+        "NotCreated": "Create the tile before you open the Effect Editor. Then open the configuration of the tile again."
       }
     },
     "Editor": {
