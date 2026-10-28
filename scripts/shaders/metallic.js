@@ -2,7 +2,7 @@ import { TileFxShader } from "./tile-fx-shader.js";
 
 /**
  * The metallic effect. It changes the mask area to polished metal, tinted with the effect color.
- * The shapes in the background image become small bumps in the metal, and a slow light moves over them.
+ * The background brightness sets the tone of the metal, and a slow light and a shine band move over it.
  * The reflections also move with the camera of each client, as on a real metal surface.
  */
 export class MetallicShader extends TileFxShader {
@@ -21,62 +21,48 @@ export class MetallicShader extends TileFxShader {
     // The offset is 1 at the view radius: offset = scenePos * viewTransform.xy + viewTransform.zw.
     uniform vec4 viewTransform;
 
-    // A higher BUMP gives a deeper relief.
-    const float BUMP = 3.0;
-    // The distance of the relief samples, in background texture pixels.
-    const float RELIEF_STEP = 1.5;
     // The tilt of the view direction at offset 1. A higher value moves the highlights more.
     const float VIEW_TILT = 0.6;
     // The shift of the shine band for a camera movement. 0 keeps the band on the metal.
     const float BAND_PARALLAX = 0.5;
-
-    // The background brightness at a texture UV. The UV stays inside the texture frame,
-    // so that the relief samples at the scene edge do not make a false ridge.
-    float baseLuma(vec2 uv) {
-      vec4 color = texture(baseSampler, clampBaseUv(uv));
-      return color.a > 0.0 ? perceivedBrightness(unpremultiply(color)) : 0.5;
-    }
+    // The diffuse light on the flat metal.
+    const float DIFFUSE = 0.9;
 
     vec4 _main() {
       float s = min(strength(), 1.0);
       if ( s <= 0.0 ) return vec4(0.0);
 
-      // With no background, the metal is flat and of medium brightness.
-      // The normal uses background texture axes. The light turns in the same axes.
-      float luma = 0.5;
-      vec3 normal = vec3(0.0, 0.0, 1.0);
-      vec2 uv;
-      if ( baseUv(vUvs, uv) ) {
-        luma = baseLuma(uv);
-        vec2 dx = vec2(baseTexelSize.x * RELIEF_STEP, 0.0);
-        vec2 dy = vec2(0.0, baseTexelSize.y * RELIEF_STEP);
-        float slopeX = baseLuma(uv + dx) - baseLuma(uv - dx);
-        float slopeY = baseLuma(uv + dy) - baseLuma(uv - dy);
-        normal = normalize(vec3(-slopeX * BUMP, -slopeY * BUMP, 1.0));
-      }
+      // With no background, the metal is of medium brightness.
+      vec4 base = sampleBase(vUvs);
+      float luma = base.a > 0.0 ? perceivedBrightness(unpremultiply(base)) : 0.5;
 
       // The eye is above the camera center. Thus a pixel away from the center sees the metal at an angle.
       vec2 offset = ((sceneMatrix * vec3(vUvs, 1.0)).xy * viewTransform.xy) + viewTransform.zw;
       vec3 view = normalize(vec3(-offset * VIEW_TILT, 1.0));
 
-      // A light that turns slowly around the area.
+      // A light that turns slowly around the area. The metal is flat, thus its normal is (0, 0, 1).
       float angle = phase * 0.5;
       vec3 light = normalize(vec3(cos(angle), sin(angle), 1.2));
-      float diffuse = 0.6 + (0.4 * max(dot(normal, light), 0.0));
-      float specular = pow(max(dot(reflect(-light, normal), view), 0.0), 32.0);
+      vec3 mirrored = vec3(-light.xy, light.z);
+      float specular = pow(max(dot(mirrored, view), 0.0), 32.0);
 
       // A soft diagonal shine band. At pattern scale 1, the distance between two bands is about 2 grid squares (about 2.9 along one axis).
       // It moves with the time and with the camera.
+      // A cosine wave has no seam between two bands, also when the band is wide.
       vec2 pos = patternPos();
-      float band = fract(((pos.x + pos.y) * 0.35) - (phase * 0.2) + ((offset.x + offset.y) * BAND_PARALLAX)) - 0.5;
-      float shine = exp(-(band * band) / 0.0128);
+      float bandPos = ((pos.x + pos.y) * 0.35) - (phase * 0.2) + ((offset.x + offset.y) * BAND_PARALLAX);
+      float wave = 0.5 + (0.5 * cos(bandPos * TWOPI));
+      // The core is the bright center of the band. The glow is the wide light around it.
+      float core = pow(wave, 4.0);
+      float glow = wave * wave;
 
       // More contrast than the map, but a dark area does not become black.
       float tone = 0.35 + (0.65 * smoothstep(0.1, 0.9, luma));
-      vec3 metal = effectColor * tone * diffuse;
-      // The highlights mix white and the tint, as on real metal.
-      metal += mix(vec3(1.0), effectColor, 0.3) * specular * 0.8;
-      metal += mix(vec3(1.0), effectColor, 0.5) * shine * 0.35;
+      // The metal reflects the glow of the band in its own color.
+      vec3 metal = effectColor * tone * DIFFUSE * (1.0 + (glow * 0.6));
+      // The highlights mix white and the tint, as on real metal. The highlight is brighter in the band.
+      metal += mix(vec3(1.0), effectColor, 0.3) * specular * (0.6 + (core * 0.8));
+      metal += mix(vec3(1.0), effectColor, 0.5) * core * 0.3;
       // The color must not be more than the alpha (s), because the output is premultiplied. Alpha s is at most 1.
       metal = min(metal, vec3(1.0));
       // tintAlpha.a is the mesh alpha, for example 0.5 for a hidden tile.
