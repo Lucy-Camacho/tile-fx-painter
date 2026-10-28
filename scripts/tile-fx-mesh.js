@@ -1,4 +1,4 @@
-import { getTileFrame } from "./compat.js";
+import { getOcclusion, getTileFrame, isTileVisible } from "./compat.js";
 import { getBackgroundScale } from "./background-capture.js";
 
 /**
@@ -147,20 +147,21 @@ export class TileFxMesh extends foundry.canvas.primary.PrimarySpriteMesh {
   /** Copy the display state of the tile, as Tile#_refreshState and Tile#_refreshMesh do. */
   refreshState(tile) {
     const { hidden, elevation, sort, alpha, occlusion } = tile.document;
-    this.visible = tile.isVisible;
+    this.visible = isTileVisible(tile);
     this.alpha = tile.alpha * (hidden ? 0.5 : 1);
     this.hidden = hidden;
     this.elevation = elevation;
     this.sort = sort;
     this.sortLayer = foundry.canvas.groups.PrimaryCanvasGroup.SORT_LAYERS.TILES;
-    // The tile mesh uses 0 to 2. Thus the effect is directly above its tile.
-    this.zIndex = 3;
+    // The tile mesh uses 0 to 2, and 3 for a v14 preview. Thus the effect is directly above its tile and the preview.
+    this.zIndex = 4;
     // The tile opacity also sets the effect strength, because the occlusion code multiplies the output by it.
     this.unoccludedAlpha = alpha;
     this.occludedAlpha = occlusion.alpha;
-    const modeChanged = this.occlusionMode !== occlusion.mode;
-    this.occlusionMode = occlusion.mode;
-    this.hoverFade = this.isOccludable;
+    const { mode, hoverFade } = getOcclusion(tile.document);
+    const modeChanged = this.occlusionMode !== mode;
+    this.occlusionMode = mode;
+    this.hoverFade = hoverFade;
     // Foundry refreshes the occlusion states only for a tile with a mesh. A tile with no image has no mesh.
     if (modeChanged) canvas.perception.update({ refreshOcclusionStates: true });
   }

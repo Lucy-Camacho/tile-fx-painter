@@ -38,6 +38,50 @@ export function changesTileFrame(changed) {
 }
 
 /**
+ * Get the occlusion state of a tile mesh, as Tile#_refreshMesh sets it.
+ * - v13: one mode in occlusion.mode.
+ * - v14: a set of bit flags in occlusion.modes. The deprecated occlusion.mode gives only the first mode.
+ *   The SURFACE mode has no hover fade.
+ * @param {TileDocument} tileDocument
+ * @returns {{mode: number, hoverFade: boolean}}
+ */
+export function getOcclusion(tileDocument) {
+  const M = CONST.OCCLUSION_MODES;
+  const { occlusion } = tileDocument;
+  if (isV14()) {
+    let mode = M.NONE;
+    for (const m of occlusion.modes) mode |= m;
+    return { mode, hoverFade: (mode !== M.NONE) && !(mode & M.SURFACE) };
+  }
+  return { mode: occlusion.mode, hoverFade: occlusion.mode !== M.NONE };
+}
+
+/**
+ * Tell if the effect of a tile shows.
+ * v14 hides a tile while it has a preview, and shows the preview. The effect stays on the saved tile, thus it hides
+ * during a drag. The tile sheet also makes a preview. The effect ignores this preview and shows while the sheet is
+ * open, as in v13, because the user changes the effect in the sheet.
+ * @param {Tile} tile
+ * @returns {boolean}
+ */
+export function isTileVisible(tile) {
+  if (!isV14() || (tile._preview?.previewType !== "config")) return tile.isVisible;
+  // PlaceableObject#isVisible with no preview. Tiles have no author, and the sheet preview releases the tile.
+  return !tile.isFilteredOut && (game.user.isGM || !tile.document.hidden);
+}
+
+/**
+ * Get the tile data that the tile sheet shows, with the changes that the user did not submit.
+ * - v13: the sheet writes the form changes into the tile document.
+ * - v14: the sheet writes the form changes into a preview document. The tile document keeps the saved data.
+ * @param {TileConfig} app
+ * @returns {TileDocument}
+ */
+export function getSheetDocument(app) {
+  return (isV14() && app._preview) || app.document;
+}
+
+/**
  * Get the background image under a tile, and the placement of the image in the scene.
  * - v13: the scene background. Foundry stretches it to the scene rectangle.
  * - v14: the background of the lowest level of the tile. Foundry draws it as a sprite at the center of the scene

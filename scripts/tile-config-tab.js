@@ -1,6 +1,7 @@
 import { MODULE_ID } from "./main.js";
 import { EffectEditor } from "./effect-editor.js";
 import { EFFECTS, getEffectSettings } from "./effects.js";
+import { getSheetDocument } from "./compat.js";
 
 const TAB_ID = MODULE_ID;
 const TEMPLATE = `modules/${MODULE_ID}/templates/tile-config-tab.hbs`;
@@ -21,8 +22,10 @@ Hooks.on("renderTileConfig", async (app, element) => {
   if (!group) return;
 
   const idPrefix = `${app.id}-${MODULE_ID}`;
-  const flags = app.document.flags[MODULE_ID] ?? {};
-  const settings = getEffectSettings(app.document);
+  // Show the values that the user did not submit. A re-render keeps them, the same as the core fields.
+  const tileData = getSheetDocument(app);
+  const flags = tileData.flags[MODULE_ID] ?? {};
+  const settings = getEffectSettings(tileData);
   const html = await foundry.applications.handlebars.renderTemplate(TEMPLATE, {
     moduleId: MODULE_ID,
     tabId: TAB_ID,

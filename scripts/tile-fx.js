@@ -83,7 +83,8 @@ Hooks.on("refreshTile", (tile, flags) => {
   const mesh = meshes.get(tile.document.id);
   if (!mesh || tile.isPreview) return;
   if (flags.refreshPosition || flags.refreshRotation || flags.refreshSize) mesh.refreshTransform(tile.document);
-  if (flags.refreshState || flags.refreshElevation || flags.refreshMesh) mesh.refreshState(tile);
+  // v14 sets the tile visibility in refreshVisibility. Foundry v14 sets this flag on a tile only with refreshState, but a later release can change this.
+  if (flags.refreshState || flags.refreshVisibility || flags.refreshElevation || flags.refreshMesh) mesh.refreshState(tile);
 });
 
 /** Tell if the background image under the tile, or its placement, is different from the background of its mesh. */
