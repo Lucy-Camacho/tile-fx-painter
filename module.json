@@ -10,7 +10,7 @@
   ],
   "compatibility": {
     "minimum": "13",
-    "verified": "13"
+    "verified": "14"
   },
   "esmodules": ["scripts/main.js", "scripts/compat.js", "scripts/tile-config-tab.js", "scripts/effects.js","scripts/effect-editor.js", "scripts/background-capture.js", "scripts/mask-canvas.js", "scripts/tile-fx.js", "scripts/tile-fx-mesh.js", "scripts/shaders/tile-fx-shader.js", "scripts/shaders/glow.js", "scripts/shaders/metallic.js", "scripts/shaders/oil-spill.js"],
   "persistentStorage": true,

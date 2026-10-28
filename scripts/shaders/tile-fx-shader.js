@@ -113,7 +113,7 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
 
     // Check the texture each frame, because the Foundry texture cache can unload it.
     const texture = mesh.backgroundTexture;
-    const hasBase = !!texture?.valid && !!texture.baseTexture && !texture.baseTexture.destroyed
+    const hasBase = mesh.hasBaseMatrix && !!texture?.valid && !!texture.baseTexture && !texture.baseTexture.destroyed
       && (texture !== PIXI.Texture.EMPTY) && (texture !== PIXI.Texture.WHITE);
     uniforms.hasBase = hasBase ? 1 : 0;
     uniforms.baseSampler = hasBase ? texture : PIXI.Texture.EMPTY;

@@ -298,6 +298,8 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     } catch (err) {
       console.error(err);
       message = "TILE_FX_PAINTER.Editor.CaptureFailed";
+      // Thus the next scene or level update tries the capture again. A newer capture keeps its own key.
+      if (captureId === this.#captureId) this.#backgroundKey = "";
     }
     const savedImage = await savedMask;
 

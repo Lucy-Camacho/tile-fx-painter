@@ -64,10 +64,11 @@ async function syncTile(tile) {
     }
     if (loadBackground) {
       // With no background texture, the effect shows with no background. The mask is still correct.
+      // The mesh keeps no source after a failed load. Thus the next sync tries the load again.
       if (background && !backgroundTexture) {
         console.warn(`${MODULE_ID} | Cannot load the background "${background.src}" of tile ${tileId}`);
       }
-      mesh.setBackground(background, backgroundTexture);
+      mesh.setBackground(backgroundTexture ? background : null, backgroundTexture);
     }
   }
 

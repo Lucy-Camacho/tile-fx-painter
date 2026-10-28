@@ -25,6 +25,12 @@ export class TileFxMesh extends foundry.canvas.primary.PrimarySpriteMesh {
    */
   baseMatrix = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1]);
 
+  /**
+   * True if baseMatrix places the background image. It is false with no texture, or with an image scale of 0,
+   * because Foundry then does not show the image.
+   */
+  hasBaseMatrix = false;
+
   /** The mat3 (column-major) that changes a mask UV to a position in the scene rectangle, from (0, 0) to (1, 1). */
   sceneMatrix = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1]);
 
@@ -101,6 +107,7 @@ export class TileFxMesh extends foundry.canvas.primary.PrimarySpriteMesh {
 
     const m = this.baseMatrix;
     m.set([1, 0, 0, 0, 1, 0, 0, 0, 1]);
+    this.hasBaseMatrix = false;
     const source = this.#background;
     const texture = this.backgroundTexture;
     if (!source || !texture?.width || !texture.height) return;
@@ -120,6 +127,7 @@ export class TileFxMesh extends foundry.canvas.primary.PrimarySpriteMesh {
     m[4] = toImageY(vx, vy);
     m[6] = toImageX(ox - source.x, oy - source.y) + source.anchorX;
     m[7] = toImageY(ox - source.x, oy - source.y) + source.anchorY;
+    this.hasBaseMatrix = true;
   }
 
   /**
