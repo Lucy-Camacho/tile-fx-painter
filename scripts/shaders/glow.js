@@ -4,13 +4,22 @@ import { getParamDefaults } from "../effects.js";
 /**
  * The glow effect: a bright core in the mask area and a soft halo around it.
  * The output alpha is 0, thus the premultiplied blend adds the light to the color below.
- * The halo stays inside the tile frame, because the mesh covers only the frame.
+ * The halo can go past the tile frame, because getBleed makes the mesh larger than the frame.
  */
 export class GlowShader extends TileFxShader {
   static defaultUniforms = {
     ...super.defaultUniforms,
     ...getParamDefaults("glow")
   };
+
+  /**
+   * The halo radius, plus the fade of maskAlpha past the frame. At the outer ring, this fade is half of a mip texel,
+   * and a mip texel is one third of the radius. Thus the halo is 0 at the mesh edge and shows no hard line there.
+   * @override
+   */
+  static getBleed(fx) {
+    return fx.params.haloRadius * fx.scale * (7 / 6);
+  }
 
   /** @override */
   static get _effectShader() {
@@ -32,10 +41,12 @@ export class GlowShader extends TileFxShader {
     const float BASE_LIGHT = 0.3;
     const float FALLOFF = 0.6;        // 1 is a full screen blend. A lower value keeps more light on bright pixels.
 
-    // The mask alpha at a mask UV and mip level. It is 0 outside the texture, because the texture clamps at its edge.
+    // The mask alpha at a mask UV and mip level. It goes to 0 outside the texture, because the texture clamps at its edge.
+    // The alpha fades over one mip texel at the edge. A sudden stop would show each halo sample as a hard line past the frame.
     float maskAlpha(vec2 uv, float lod) {
-      if ( any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0))) ) return 0.0;
-      return textureLod(sampler, uv, lod).a;
+      vec2 texel = exp2(lod) / vec2(textureSize(sampler, 0));
+      vec2 cover = clamp((min(uv, 1.0 - uv) / texel) + 0.5, 0.0, 1.0);
+      return textureLod(sampler, uv, lod).a * cover.x * cover.y;
     }
 
     // One ring of the halo blur. Each ring turns by a different part of its step, to avoid a visible star shape.

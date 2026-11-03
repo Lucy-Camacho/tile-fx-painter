@@ -74,8 +74,10 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
     }
 
     // The mask alpha times the intensity. It can be more than 1.
+    // It is 0 outside the tile frame, because the texture clamps at its edge and would show streaks in the bleed area.
     float strength() {
-      return texture(sampler, vUvs).a * intensity;
+      vec2 inside = step(vec2(0.0), vUvs) * step(vUvs, vec2(1.0));
+      return texture(sampler, vUvs).a * inside.x * inside.y * intensity;
     }
 
     // One unit is one grid square at pattern scale 1. Thus a pattern has the same size on all tiles.
@@ -90,6 +92,16 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
       return vec4(0.0);
     }
   `;
+
+  /**
+   * The distance that the effect can draw past the tile frame, in grid squares. The mesh gets larger by this distance.
+   * A subclass overrides this only if it draws outside the mask. Each added pixel runs the shader, thus keep the distance small.
+   * @param {import("../tile-fx-mesh.js").TileFxMesh["fx"]} fx
+   * @returns {number}
+   */
+  static getBleed(fx) {
+    return 0;
+  }
 
   /** @override */
   static get _fragmentShader() {

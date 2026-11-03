@@ -5,6 +5,7 @@ import { getBackgroundScale } from "./background-capture.js";
  * The effect mesh of one tile. It is a direct child of canvas.primary, separate from the tile mesh,
  * because Foundry makes no tile mesh for a tile with no image.
  * The texture is the mask. The mesh covers the tile frame, thus vUvs in the shader is the mask UV.
+ * A shader with a bleed (TileFxShader.getBleed) makes the mesh larger than the frame. vUvs is then outside 0 to 1 in the added area.
  */
 export class TileFxMesh extends foundry.canvas.primary.PrimarySpriteMesh {
   /**
@@ -64,8 +65,9 @@ export class TileFxMesh extends foundry.canvas.primary.PrimarySpriteMesh {
   }
 
   /**
-   * Fit the mesh to the tile frame.
+   * Fit the mesh to the tile frame, plus the bleed of the shader.
    * The mesh ignores the fit, scale, and mirror of the tile image, because the mask uses the frame.
+   * Call this after a change of the shader class or the settings, because the bleed uses them.
    */
   refreshTransform(tileDocument) {
     const frame = getTileFrame(tileDocument);
@@ -75,6 +77,10 @@ export class TileFxMesh extends foundry.canvas.primary.PrimarySpriteMesh {
     this.position.set(centerX, centerY);
     this.angle = rotation;
     this.resize(width, height);
+    // The padding is in mask texture pixels, and the scale changes them to scene pixels. Core SpriteMesh extends the UVs with the padding.
+    const bleed = this.shader.constructor.getBleed(this.fx) * canvas.dimensions.size;
+    this.paddingX = this.scale.x > 0 ? bleed / this.scale.x : 0;
+    this.paddingY = this.scale.y > 0 ? bleed / this.scale.y : 0;
     this.tileSize.width = width;
     this.tileSize.height = height;
     this.#refreshMatrices(frame);
