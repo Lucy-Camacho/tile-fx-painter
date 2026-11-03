@@ -1,5 +1,5 @@
 import { MODULE_ID } from "./main.js";
-import { getBackgroundSource, getTileFrame } from "./compat.js";
+import { getBackgroundSource, getSavedTileFrame } from "./compat.js";
 
 const MAX_SIZE = 4096;
 
@@ -65,7 +65,7 @@ export async function captureBackground(tile) {
   if (!scaleX || !scaleY) return null;
 
   // Keep the resolution of the source image. The image can have a different size than the scene.
-  const frame = getTileFrame(tile);
+  const frame = getSavedTileFrame(tile);
   let scale = Math.max(1 / Math.abs(scaleX), 1 / Math.abs(scaleY));
   const longest = Math.max(frame.width, frame.height) * scale;
   if (longest > MAX_SIZE) scale *= MAX_SIZE / longest;

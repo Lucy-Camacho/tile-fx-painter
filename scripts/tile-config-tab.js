@@ -1,7 +1,7 @@
 import { MODULE_ID } from "./main.js";
 import { EffectEditor } from "./effect-editor.js";
 import { EFFECTS, getEffectParams, getEffectSettings } from "./effects.js";
-import { getSheetDocument } from "./compat.js";
+import { getSheetDocument, resetSheetDocument } from "./compat.js";
 
 const TAB_ID = MODULE_ID;
 const TEMPLATE = `modules/${MODULE_ID}/templates/tile-config-tab.hbs`;
@@ -130,3 +130,5 @@ Hooks.on("renderTileConfig", async (app, element) => {
 
   app.setPosition({ height: "auto" });
 });
+
+Hooks.on("closeTileConfig", (app) => resetSheetDocument(app));

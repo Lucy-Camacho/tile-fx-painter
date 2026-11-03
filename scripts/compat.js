@@ -27,6 +27,17 @@ export function getTileFrame(tileDocument) {
 }
 
 /**
+ * Get the saved frame of a tile, with no changes that the tile sheet did not submit.
+ * The v13 sheet writes the form changes into the tile document, thus only the source has the saved data.
+ * The v14 sheet writes them into a preview document, thus the tile document has the saved data.
+ * @param {TileDocument} tileDocument
+ * @returns {ReturnType<typeof getTileFrame>}
+ */
+export function getSavedTileFrame(tileDocument) {
+  return getTileFrame(isV14() ? tileDocument : tileDocument._source);
+}
+
+/**
  * Tell if a tile update moves, resizes, or turns the tile frame.
  * In v13, the texture anchor moves only the tile image in the frame. In v14, it moves the frame.
  * @param {object} changed  The changed data from the "updateTile" hook.
@@ -79,6 +90,22 @@ export function isTileVisible(tile) {
  */
 export function getSheetDocument(app) {
   return (isV14() && app._preview) || app.document;
+}
+
+/**
+ * Remove the changes that the user did not submit from the tile document, after the tile sheet closes.
+ * In v13, TileConfig#_onChangeForm writes the form changes into the tile document, and no core code removes them.
+ * Thus the sheet shows them when it opens again, and the tile stays changed on the canvas. v14 discards its preview.
+ * "Update Tile" saves before the sheet closes, thus the reset keeps the saved changes.
+ * @param {TileConfig} app
+ */
+export function resetSheetDocument(app) {
+  if (isV14()) return;
+  const { document } = app;
+  // A deleted tile, or the preview tile of a drag on the canvas. Core destroys the preview, and no code uses it after this.
+  if (!document.collection?.has(document.id)) return;
+  document.reset();
+  if (document.rendered) document.object.renderFlags.set({ refresh: true });
 }
 
 /**
