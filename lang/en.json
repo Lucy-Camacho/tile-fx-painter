@@ -19,7 +19,7 @@
           "None": "None",
           "Glow": "Glow",
           "Metallic": "Metallic",
-          "OilSpill": "Oil Spill"
+          "Liquid": "Liquid"
         }
       },
       "Intensity": {
@@ -84,22 +84,22 @@
           "Hint": "The brightness of the metal on the darkest map areas. The value 1 gives a flat metal with no map tone."
         }
       },
-      "OilSpill": {
+      "Liquid": {
         "WarpAmount": {
           "Label": "Swirl Twist",
-          "Hint": "The twist of the oil swirls. The value 0 gives soft clouds with no swirls."
+          "Hint": "The twist of the liquid swirls. The value 0 gives soft clouds with no swirls."
         },
         "Bands": {
           "Label": "Rainbow Bands",
-          "Hint": "The number of rainbow cycles in the oil film."
+          "Hint": "The number of rainbow cycles in the film on the liquid."
         },
         "FilmAmount": {
           "Label": "Rainbow Strength",
-          "Hint": "The quantity of rainbow color on the oil. The value 0 shows only the dark oil."
+          "Hint": "The quantity of rainbow color on the liquid. The value 0 removes the rainbow."
         },
         "Darken": {
-          "Label": "Oil Brightness",
-          "Hint": "The quantity of map brightness that stays in the oil. A higher value shows more of the map."
+          "Label": "Liquid Brightness",
+          "Hint": "The quantity of map brightness that stays in the liquid. A higher value shows more of the map."
         },
         "Ripple": {
           "Label": "Ripples",
@@ -107,7 +107,7 @@
         },
         "RefractAmount": {
           "Label": "Distortion",
-          "Hint": "The maximum shift of the map under the oil, in grid squares at Pattern Scale 1."
+          "Hint": "The maximum shift of the map under the liquid, in grid squares at Pattern Scale 1."
         },
         "SpecularAmount": {
           "Label": "Wet Highlights",

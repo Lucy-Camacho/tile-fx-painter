@@ -33,18 +33,18 @@ export const EFFECTS = {
       shadowTone: { default: 0.35, min: 0, max: 1, step: 0.05 }
     }
   },
-  oilSpill: {
-    label: "TILE_FX_PAINTER.Config.Shader.Choices.OilSpill",
-    // The dark film color under the rainbow colors.
+  liquid: {
+    label: "TILE_FX_PAINTER.Config.Shader.Choices.Liquid",
+    // The dark color of the liquid, under the rainbow colors.
     defaultColor: "#1c2230",
     params: {
       // The force of the domain warp. A higher value gives more twisted swirls.
       warpAmount: { default: 4, min: 0, max: 8, step: 0.1 },
       // The number of rainbow cycles from the thinnest to the thickest film.
       bands: { default: 2, min: 0.5, max: 5, step: 0.1 },
-      // The quantity of rainbow color on the oil.
+      // The quantity of rainbow color on the liquid. 0 removes the rainbow.
       filmAmount: { default: 0.35, min: 0, max: 1, step: 0.05 },
-      // The quantity of background brightness that stays in the oil.
+      // The quantity of background brightness that stays in the liquid.
       darken: { default: 0.45, min: 0, max: 1, step: 0.05 },
       // The height of the small surface ripples.
       ripple: { default: 0.06, min: 0, max: 0.2, step: 0.01 },

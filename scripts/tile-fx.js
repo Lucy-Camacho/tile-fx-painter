@@ -4,13 +4,13 @@ import { getBackgroundSource } from "./compat.js";
 import { TileFxMesh } from "./tile-fx-mesh.js";
 import { GlowShader } from "./shaders/glow.js";
 import { MetallicShader } from "./shaders/metallic.js";
-import { OilSpillShader } from "./shaders/oil-spill.js";
+import { LiquidShader } from "./shaders/liquid.js";
 
 /** The shader class of each effect. */
 const SHADERS = {
   glow: GlowShader,
   metallic: MetallicShader,
-  oilSpill: OilSpillShader
+  liquid: LiquidShader
 };
 
 const meshes = new Map();
