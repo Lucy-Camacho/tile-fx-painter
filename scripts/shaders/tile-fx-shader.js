@@ -110,6 +110,8 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
     uniforms.gridSize = canvas.dimensions.size;
     uniforms.baseMatrix = mesh.baseMatrix;
     uniforms.sceneMatrix = mesh.sceneMatrix;
+    // The param key is the uniform name. Copy each frame, thus a new shader class gets the params in the next frame.
+    for ( const [key, value] of Object.entries(fx.params) ) uniforms[key] = value;
 
     // Check the texture each frame, because the Foundry texture cache can unload it.
     const texture = mesh.backgroundTexture;

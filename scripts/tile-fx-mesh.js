@@ -7,8 +7,11 @@ import { getBackgroundScale } from "./background-capture.js";
  * The texture is the mask. The mesh covers the tile frame, thus vUvs in the shader is the mask UV.
  */
 export class TileFxMesh extends foundry.canvas.primary.PrimarySpriteMesh {
-  /** The values that the shader reads. The color is RGB, from 0 to 1. */
-  fx = { intensity: 1, color: [1, 1, 1], speed: 1, scale: 1 };
+  /**
+   * The values that the shader reads. The color is RGB, from 0 to 1.
+   * The params are the values of the active effect. The shader copies each one to the uniform of the same name.
+   */
+  fx = { intensity: 1, color: [1, 1, 1], speed: 1, scale: 1, params: {} };
 
   /** The animation time in seconds at speed 1. It wraps at PHASE_WRAP to keep the shader math precise. */
   phase = 0;
@@ -180,5 +183,6 @@ export class TileFxMesh extends foundry.canvas.primary.PrimarySpriteMesh {
     this.fx.color = foundry.utils.Color.from(settings.color).rgb;
     this.fx.speed = settings.speed;
     this.fx.scale = Math.max(settings.scale, 0.01);
+    this.fx.params = settings.params;
   }
 }
