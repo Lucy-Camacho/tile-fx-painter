@@ -56,6 +56,27 @@ async function ensureDirectory(dir) {
 }
 
 /**
+ * Upload a mask as the file of a tile, in the scene folder of the mask directory.
+ * @param {TileDocument} tile
+ * @param {string} root  The mask directory from getMaskDirectory.
+ * @param {Blob} blob    The PNG data.
+ * @returns {Promise<string>}  The value of the tile flag "mask".
+ */
+async function uploadMask(tile, root, blob) {
+  const folder = getSceneFolder(tile.parent);
+  const dir = root ? `${root}/${folder}` : folder;
+  const file = new File([blob], `${tile.parent.id}-${tile.id}.png`, { type: "image/png" });
+
+  await ensureDirectory(dir);
+  const FilePicker = foundry.applications.apps.FilePicker.implementation;
+  const result = await FilePicker.upload("data", dir, file, {}, { notify: false });
+  if (!result?.path) throw new Error(`${MODULE_ID} | The upload of "${file.name}" to "${dir}" failed`);
+
+  // The file name stays the same for each save. The timestamp makes a new URL, thus the browser does not show an old cached image.
+  return `${result.path}?v=${Date.now()}`;
+}
+
+/**
  * The window where the user makes the effect mask for one tile.
  * The window id comes from the tile id, thus each tile has a maximum of one editor.
  */
@@ -370,8 +391,6 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
       ui.notifications.error("TILE_FX_PAINTER.Editor.InvalidDirectory", { localize: true });
       return false;
     }
-    const folder = getSceneFolder(this.tile.parent);
-    const dir = root ? `${root}/${folder}` : folder;
     this.#saving = true;
     this.#updateToolbar();
     try {
@@ -381,17 +400,11 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
       const version = this.mask.version;
       const blob = await new Promise((resolve) => this.mask.mask.toBlob(resolve, "image/png"));
       if (!blob) throw new Error(`${MODULE_ID} | The mask canvas did not give a PNG file`);
-      const file = new File([blob], `${this.tile.parent.id}-${this.tile.id}.png`, { type: "image/png" });
+      const mask = await uploadMask(this.tile, root, blob);
 
-      await ensureDirectory(dir);
-      const FilePicker = foundry.applications.apps.FilePicker.implementation;
-      const result = await FilePicker.upload("data", dir, file, {}, { notify: false });
-      if (!result?.path) throw new Error(`${MODULE_ID} | The upload of "${file.name}" to "${dir}" failed`);
-
-      // The file name stays the same for each save. The timestamp makes a new URL, thus the browser does not show an old cached image.
       // "render: false" stops a new render of the open tile sheets on all clients. A new render fills the form from the saved
       // data and removes the changes that the user did not submit. The sheets do not show the "mask" flag, thus they stay correct.
-      await this.tile.update({ [`flags.${MODULE_ID}.mask`]: `${result.path}?v=${Date.now()}` }, { render: false });
+      await this.tile.update({ [`flags.${MODULE_ID}.mask`]: mask }, { render: false });
       this.mask.markSaved(version);
       ui.notifications.info("TILE_FX_PAINTER.Editor.Saved", { localize: true });
       return true;
@@ -589,6 +602,44 @@ Hooks.on("deleteTile", (tile) => discardEditor(tile));
 
 // A scene deletion does not call "deleteTile" for the tiles of the scene. The scene keeps its tiles collection after the deletion.
 Hooks.on("deleteScene", (scene) => scene.tiles.forEach(discardEditor));
+
+/**
+ * Copy the mask file of a pasted tile to the file of the new tile.
+ * A save overwrites the file of its tile. Without a copy, a save on the old tile also changes the mask of the new tile.
+ * If the copy fails, the new tile keeps the old path, thus it still shows the mask.
+ * @param {TileDocument} tile
+ * @returns {Promise<void>}
+ */
+async function copyPastedMask(tile) {
+  const path = tile.flags[MODULE_ID]?.mask;
+  if (!path) return;
+  if (!game.user.can("FILES_UPLOAD")) {
+    ui.notifications.warn("TILE_FX_PAINTER.Editor.CopyNoPermission", { localize: true });
+    return;
+  }
+  try {
+    const root = getMaskDirectory();
+    if (root === null) throw new Error(`${MODULE_ID} | The mask directory is not in the user data`);
+    const response = await fetch(path);
+    if (!response.ok) throw new Error(`${MODULE_ID} | Cannot load the mask "${path}" (${response.status})`);
+    const mask = await uploadMask(tile, root, await response.blob());
+    // An undo can delete the tile during the upload.
+    if (!EffectEditor.isCreated(tile)) return;
+    // "isUndo" keeps this update out of the canvas history. Else the first Ctrl+Z after a paste restores the shared path,
+    // and the tile stays. Foundry reads this option only for the history and for token movement.
+    await tile.update({ [`flags.${MODULE_ID}.mask`]: mask }, { render: false, isUndo: true });
+  } catch (err) {
+    console.error(err);
+    ui.notifications.warn("TILE_FX_PAINTER.Editor.CopyFailed", { localize: true });
+  }
+}
+
+// Only the client that pasted the tile makes the copy. Foundry does a paste with a new id and no "keepId".
+// With "keepId" (the undo of a deletion, or a cut and paste to a different scene), no different tile uses the file.
+Hooks.on("createTile", (tile, options, userId) => {
+  if ((userId !== game.user.id) || options.keepId) return;
+  copyPastedMask(tile);
+});
 
 // The editor is a part of the tile sheet for the user. Close it with the sheet.
 // "Update Tile" also closes the sheet, thus it also closes the editor.
