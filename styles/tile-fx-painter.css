@@ -1,8 +1,14 @@
 /* Tile FX Painter styles */
 
-.tile-fx-painter .tile-fx-painter-open-editor {
+/* The "auto" height of a window has no limit. Without a maximum height, the settings of an effect can push the submit button off the screen. */
+.tile-fx-painter.tab {
+  max-height: calc(100vh - 14rem);
+  overflow-y: auto;
+}
+
+.tile-fx-painter .tile-fx-painter-open-editor,
+.tile-fx-painter .tile-fx-painter-reset-params {
   width: 100%;
-  margin-top: 0.5rem;
 }
 
 .tile-fx-painter.effect-editor .window-content {

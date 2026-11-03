@@ -1,6 +1,6 @@
 import { MODULE_ID } from "./main.js";
 import { EffectEditor } from "./effect-editor.js";
-import { EFFECTS, getEffectSettings } from "./effects.js";
+import { EFFECTS, getEffectParams, getEffectSettings } from "./effects.js";
 import { getSheetDocument } from "./compat.js";
 
 const TAB_ID = MODULE_ID;
@@ -10,6 +10,37 @@ const SHADER_CHOICES = {
   none: "TILE_FX_PAINTER.Config.Shader.Choices.None",
   ...Object.fromEntries(Object.entries(EFFECTS).map(([id, effect]) => [id, effect.label]))
 };
+
+/**
+ * Get the template data of the param group of each effect.
+ * The tab has the groups of all effects, because the sheet does not render again when the dropdown changes.
+ * @param {TileDocument} tileData
+ * @param {string} activeEffect  The id of the selected effect.
+ * @param {string} idPrefix
+ * @returns {object[]}
+ */
+function getEffectParamGroups(tileData, activeEffect, idPrefix) {
+  return Object.entries(EFFECTS).map(([effectId, effect]) => {
+    const values = getEffectParams(tileData, effectId);
+    const keyPrefix = `TILE_FX_PAINTER.Params.${effectId.capitalize()}`;
+    return {
+      effectId,
+      legend: game.i18n.format("TILE_FX_PAINTER.Config.Params.Legend", { effect: game.i18n.localize(effect.label) }),
+      active: effectId === activeEffect,
+      fields: Object.entries(effect.params).map(([key, param]) => ({
+        id: `${idPrefix}-params-${effectId}-${key}`,
+        name: `flags.${MODULE_ID}.params.${effectId}.${key}`,
+        label: `${keyPrefix}.${key.capitalize()}.Label`,
+        hint: `${keyPrefix}.${key.capitalize()}.Hint`,
+        value: values[key],
+        min: param.min,
+        max: param.max,
+        step: param.step,
+        defaultValue: param.default
+      }))
+    };
+  });
+}
 
 /**
  * Add the Tile FX Painter tab to the TileConfig sheet.
@@ -45,6 +76,7 @@ Hooks.on("renderTileConfig", async (app, element) => {
     speed: settings.speed,
     scaleId: `${idPrefix}-scale`,
     scale: settings.scale,
+    effectParams: getEffectParamGroups(tileData, settings.effect, idPrefix),
     // The editor saves the mask as an uploaded file. Users who cannot upload cannot use it.
     canOpenEditor: game.user.can("FILES_UPLOAD"),
     // "Create Tile" closes the sheet, thus the button stays disabled until the user opens the sheet of the created tile.
@@ -71,8 +103,27 @@ Hooks.on("renderTileConfig", async (app, element) => {
   const tab = template.content.firstElementChild;
   tab.classList.toggle("active", active);
 
-  // Each render makes a new tab element, thus the listener must be added again.
+  // Each render makes a new tab element, thus the listeners must be added again.
   tab.querySelector(".tile-fx-painter-open-editor")?.addEventListener("click", () => EffectEditor.open(app.document));
+
+  // The form data skips a disabled fieldset, thus the sheet saves only the params of the selected effect.
+  // This listener runs before the listener on the form, thus the v14 preview gets the params of the new effect.
+  const paramGroups = tab.querySelectorAll("[data-tile-fx-params]");
+  tab.querySelector(`[name="flags.${MODULE_ID}.shader"]`).addEventListener("change", (event) => {
+    for (const fieldset of paramGroups) {
+      const selected = fieldset.dataset.tileFxParams === event.currentTarget.value;
+      fieldset.hidden = !selected;
+      fieldset.disabled = !selected;
+    }
+    app.setPosition({ height: "auto" });
+  });
+
+  for (const fieldset of paramGroups) {
+    fieldset.querySelector(".tile-fx-painter-reset-params").addEventListener("click", () => {
+      // The value setter sends a change event that bubbles, thus the v14 preview also gets the defaults.
+      for (const picker of fieldset.querySelectorAll("range-picker")) picker.value = picker.dataset.default;
+    });
+  }
 
   const tabs = element.querySelectorAll(`.tab[data-group="${group}"]`);
   tabs[tabs.length - 1].after(tab);

@@ -38,9 +38,81 @@
         "Label": "Pattern Scale",
         "Hint": "The size of the effect pattern. At 1, one pattern unit is one grid square."
       },
+      "Params": {
+        "Legend": "{effect} Settings",
+        "Reset": "Reset to Defaults"
+      },
       "OpenEditor": {
         "Label": "Open Effect Editor",
         "NotCreated": "Create the tile before you open the Effect Editor. Then open the configuration of the tile again."
+      }
+    },
+    "Params": {
+      "Glow": {
+        "HaloRadius": {
+          "Label": "Halo Size",
+          "Hint": "The size of the light around the painted area, in grid squares at Pattern Scale 1."
+        },
+        "HaloLight": {
+          "Label": "Halo Strength",
+          "Hint": "The brightness of the light around the painted area."
+        },
+        "CoreWhite": {
+          "Label": "Core Heat",
+          "Hint": "The quantity of white in the color of the painted area. A higher value gives a hotter center."
+        },
+        "FlickerAmount": {
+          "Label": "Flicker",
+          "Hint": "The strength of the changes in the light. The value 0 gives a steady glow."
+        }
+      },
+      "Metallic": {
+        "Shininess": {
+          "Label": "Highlight Sharpness",
+          "Hint": "A higher value gives smaller and sharper highlights."
+        },
+        "ShineBand": {
+          "Label": "Shine Band",
+          "Hint": "The brightness of the moving band of light. The value 0 removes the band."
+        },
+        "CameraMotion": {
+          "Label": "Camera Reflection",
+          "Hint": "The movement of the reflections when the camera moves. The value 0 keeps the reflections still."
+        },
+        "ShadowTone": {
+          "Label": "Shadow Brightness",
+          "Hint": "The brightness of the metal on the darkest map areas. The value 1 gives a flat metal with no map tone."
+        }
+      },
+      "OilSpill": {
+        "WarpAmount": {
+          "Label": "Swirl Twist",
+          "Hint": "The twist of the oil swirls. The value 0 gives soft clouds with no swirls."
+        },
+        "Bands": {
+          "Label": "Rainbow Bands",
+          "Hint": "The number of rainbow cycles in the oil film."
+        },
+        "FilmAmount": {
+          "Label": "Rainbow Strength",
+          "Hint": "The quantity of rainbow color on the oil. The value 0 shows only the dark oil."
+        },
+        "Darken": {
+          "Label": "Oil Brightness",
+          "Hint": "The quantity of map brightness that stays in the oil. A higher value shows more of the map."
+        },
+        "Ripple": {
+          "Label": "Ripples",
+          "Hint": "The height of the small ripples on the surface."
+        },
+        "RefractAmount": {
+          "Label": "Distortion",
+          "Hint": "The maximum shift of the map under the oil, in grid squares at Pattern Scale 1."
+        },
+        "SpecularAmount": {
+          "Label": "Wet Highlights",
+          "Hint": "The brightness of the wet highlights on the surface."
+        }
       }
     },
     "Editor": {

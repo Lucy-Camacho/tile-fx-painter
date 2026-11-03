@@ -51,15 +51,36 @@
       </div>
       <p class="hint">{{localize "TILE_FX_PAINTER.Config.Scale.Hint"}}</p>
     </div>
-
-    {{#if canOpenEditor}}
-    <button type="button" class="tile-fx-painter-open-editor" {{#unless tileCreated}}disabled{{/unless}}>
-      <i class="fa-solid fa-pen-ruler" inert></i>
-      <span>{{localize "TILE_FX_PAINTER.Config.OpenEditor.Label"}}</span>
-    </button>
-    {{#unless tileCreated}}
-    <p class="hint">{{localize "TILE_FX_PAINTER.Config.OpenEditor.NotCreated"}}</p>
-    {{/unless}}
-    {{/if}}
   </fieldset>
+
+  {{#each effectParams}}
+  <fieldset data-tile-fx-params="{{effectId}}" {{#unless active}}hidden disabled{{/unless}}>
+    <legend>{{legend}}</legend>
+
+    {{#each fields}}
+    <div class="form-group">
+      <label for="{{id}}">{{localize label}}</label>
+      <div class="form-fields">
+        <range-picker id="{{id}}" name="{{name}}" value="{{value}}" min="{{min}}" max="{{max}}" step="{{step}}" data-default="{{defaultValue}}"></range-picker>
+      </div>
+      <p class="hint">{{localize hint}}</p>
+    </div>
+    {{/each}}
+
+    <button type="button" class="tile-fx-painter-reset-params">
+      <i class="fa-solid fa-rotate-left" inert></i>
+      <span>{{localize "TILE_FX_PAINTER.Config.Params.Reset"}}</span>
+    </button>
+  </fieldset>
+  {{/each}}
+
+  {{#if canOpenEditor}}
+  <button type="button" class="tile-fx-painter-open-editor" {{#unless tileCreated}}disabled{{/unless}}>
+    <i class="fa-solid fa-pen-ruler" inert></i>
+    <span>{{localize "TILE_FX_PAINTER.Config.OpenEditor.Label"}}</span>
+  </button>
+  {{#unless tileCreated}}
+  <p class="hint">{{localize "TILE_FX_PAINTER.Config.OpenEditor.NotCreated"}}</p>
+  {{/unless}}
+  {{/if}}
 </div>
