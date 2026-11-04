@@ -63,7 +63,7 @@
         }
       },
       "OpenEditor": {
-        "Label": "Open Effect Editor",
+        "Label": "Open Mask Editor",
         "NotCreated": "Create the tile before you open the Effect Editor. Then open the configuration of the tile again."
       }
     },
