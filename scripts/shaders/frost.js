@@ -8,7 +8,7 @@ const JAG_REACH = 0.7;
  * The frost effect: a sheet of ice with large deep and light areas, a fine straight grain, chalky white patches, and straight scratches and jagged cracks.
  * The scratches and the cracks are true line segments, because the contours of noise are curves, and ice lines are straight.
  * The grain has fixed directions that change softly from area to area. Thus the ice has no visible cells, and the grain does not curve.
- * The local mask level sets the ice threshold on the pattern. Thus a low mask alpha shows thin cracks and separate shards.
+ * The local mask level and the cover set the ice thresholds. A lower value opens holes in the sheet that fade slowly to the map (sheetAlpha), and a very low value shows only thin cracks.
  * A sudden change of the mask, for example the edge of a hole, has no threshold range. There, the ice fades to the map (iceEdge).
  * A soft fog drifts along the border of the mask, on the ice and on the map. It can go past the tile frame.
  * The ice has no time input, because a growth with time needs a start time that all clients share. Only the sparkles and the fog move.
@@ -103,12 +103,15 @@ export class FrostShader extends TileFxShader {
     const float JAG_SIZE = 0.09;        // The size of the jags on the cracks, in pattern units.
 
     // Tuning values of the threshold and the color.
-    const float ICE_EDGE = 0.03;        // The half width of the change from no ice to ice, in height units.
+    const float ICE_EDGE = 0.03;        // The half width of the change from no line to a line, in height units.
     const float ICE_NONE = 0.95;        // The threshold with no cover. No pixel is above it.
     const float ICE_ALL = -0.03;        // The threshold at full cover. It is ICE_EDGE below 0, thus height 0 has full ice.
     const float COVER_CURVE = 0.6;      // Below 1, a low mask alpha gets more ice. Thus a soft edge is not empty.
-    const float SHARD_FREQ = 0.9;       // The number of shards along one pattern unit. They show only at a low cover.
-    const float SHARD_HEIGHT = 0.62;    // The maximum height of the sheet. Above it, only lines show. Each shard has a different height.
+    const float SHEET_FREQ = 0.6;       // The number of thick and thin areas of the sheet along one pattern unit. They show only below full cover.
+    const float SHEET_LOW = 0.3;        // The cloud value of the thinnest sheet. The clouds are rarely outside SHEET_LOW and SHEET_HIGH.
+    const float SHEET_HIGH = 0.7;       // The cloud value of the thickest sheet.
+    const float SHEET_FADE = 0.3;       // The half width of the fade from the sheet to the map, in height units. A higher value gives a slower fade.
+    const float SHEET_GONE = 0.3;       // The cover where the sheet stops. Below it, only thin cracks show.
     const float DEEP_COLOR = 0.8;       // The brightness of the deepest color.
     const float TONE_BASE = 0.55;       // The mean tone. Above 0.5, the ice is mostly lighter than the effect color.
 
@@ -161,7 +164,7 @@ export class FrostShader extends TileFxShader {
     // The mask at a position that the jags move. Thus the edge of the ice is rough.
     // x: the local mask level, the highest sample near the pixel. y: the fade of the ice, from 0 at a hard mask edge to 1 inside.
     // The ratio of the mean to the highest sample is near 1 on a soft or a flat mask, and 0.5 on a hard edge. Thus a low alpha keeps its
-    // thin cracks, and only a sudden change fades. The level is 1 in the fade band of a hard edge, thus the band shows no shard edges.
+    // thin cracks, and only a sudden change fades. The level is 1 in the fade band of a hard edge, thus the band shows no holes of the sheet.
     vec2 iceEdge(vec2 pos) {
       vec2 uv = vUvs + (jagShift(pos) * edgeRoughness * gridSize * patternScale / tileSize);
       if ( edgeFade <= 0.0 ) return vec2(maskAlpha(uv, 0.0), 1.0);
@@ -330,13 +333,16 @@ export class FrostShader extends TileFxShader {
       return vec3(clamp(tone, 0.0, 1.0), white, lines);
     }
 
-    // The height of the sheet for the ice threshold. Each shard has a different height. Thus a lower threshold adds whole shards, with their angular edges.
-    // The points of the shards do not move, thus the time input is 0.
-    float sheetHeight(vec2 pos) {
-      vec2 p = pos + (jagShift(pos) * 0.25);
-      float large = voronoiCells(p * SHARD_FREQ, 0.0).z;
-      float small = voronoiCells((OCTAVE_TURN * p * SHARD_FREQ * 2.7) + 7.1, 0.0).z;
-      return mix(large, small, 0.5) * SHARD_HEIGHT;
+    // The alpha of the sheet of ice, from the cover. The height has no sudden steps and the threshold range is wide.
+    // Thus a lower cover opens holes that fade slowly to the map. A height with steps, for example from Voronoi cells, gives hard hole edges.
+    float sheetAlpha(vec2 pos, float cover) {
+      // Do not calculate the clouds for a full sheet.
+      if ( cover >= 1.0 ) return 1.0;
+      if ( cover <= SHEET_GONE ) return 0.0;
+      float height = clamp((softClouds((pos * SHEET_FREQ) + vec2(8.2, 3.6)) - SHEET_LOW) / (SHEET_HIGH - SHEET_LOW), 0.0, 1.0);
+      // At the two ends of the threshold range, all heights are on one side of the fade.
+      float threshold = mix(1.0 + SHEET_FADE, -SHEET_FADE, (cover - SHEET_GONE) / (1.0 - SHEET_GONE));
+      return smoothstep(threshold - SHEET_FADE, threshold + SHEET_FADE, height);
     }
 
     // The color of the ice, from a deep color through the effect color to a light color.
@@ -404,11 +410,11 @@ export class FrostShader extends TileFxShader {
       if ( (mask <= 0.0) || (edge.y <= 0.0) ) return vec4(0.0);
 
       vec3 surface = iceSurface(pos, pixelSize);
-      float threshold = mix(ICE_NONE, ICE_ALL, pow(mask, COVER_CURVE) * frostCover);
-      // The lines are higher than the sheet, thus a high threshold shows only thin cracks.
-      // The shards show only below full cover. Do not calculate them for a full sheet, because two Voronoi layers are slow.
-      float height = threshold > ICE_ALL ? max(surface.z * ICE_NONE, sheetHeight(pos)) : 0.0;
-      float ice = smoothstep(threshold - ICE_EDGE, threshold + ICE_EDGE, height) * edge.y;
+      float cover = pow(mask, COVER_CURVE) * frostCover;
+      float threshold = mix(ICE_NONE, ICE_ALL, cover);
+      // The lines have their own narrow threshold, thus they stay thin and sharp where the sheet fades.
+      float lines = smoothstep(threshold - ICE_EDGE, threshold + ICE_EDGE, surface.z * ICE_NONE);
+      float ice = max(lines, sheetAlpha(pos, cover)) * edge.y;
       if ( ice <= 0.0 ) return vec4(0.0);
 
       // With no background, the ice color replaces the map.

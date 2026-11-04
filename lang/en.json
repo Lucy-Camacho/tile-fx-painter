@@ -200,7 +200,7 @@
       "Frost": {
         "FrostCover": {
           "Label": "Frost Cover",
-          "Hint": "The quantity of ice at full mask alpha. A low value shows only thin cracks and separate shards."
+          "Hint": "The quantity of ice at full mask alpha. A lower value opens holes that fade slowly to the map. A very low value shows only thin cracks."
         },
         "EdgeRoughness": {
           "Label": "Edge Roughness",
