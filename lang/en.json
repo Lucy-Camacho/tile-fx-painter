@@ -64,7 +64,7 @@
       },
       "OpenEditor": {
         "Label": "Open Mask Editor",
-        "NotCreated": "Create the tile before you open the Effect Editor. Then open the configuration of the tile again."
+        "NotCreated": "Create the tile before you open the Mask Editor. Then open the configuration of the tile again."
       }
     },
     "Params": {
@@ -296,7 +296,7 @@
       }
     },
     "Editor": {
-      "Title": "Effect Editor: Tile {id}",
+      "Title": "Mask Editor: Tile {id}",
       "Loading": "Loading the scene background...",
       "NoBackground": "The scene has no background image.",
       "CaptureFailed": "Cannot load the scene background image. Look at the console for more data.",
@@ -337,7 +337,7 @@
     "Settings": {
       "MaskDirectory": {
         "Name": "Mask Directory",
-        "Hint": "The directory in the User Data for the mask files of the Effect Editor. Other sources, for example Core Data and S3, do not work. The default directory stays after a module update. A module update or a reinstall can delete other directories in modules/tile-fx-painter/."
+        "Hint": "The directory in the User Data for the mask files of the Mask Editor. Other sources, for example Core Data and S3, do not work. The default directory stays after a module update. A module update or a reinstall can delete other directories in modules/tile-fx-painter/."
       }
     }
   }
