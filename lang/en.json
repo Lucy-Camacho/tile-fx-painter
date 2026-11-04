@@ -131,19 +131,19 @@
         },
         "WarpAmount": {
           "Label": "Swirl",
-          "Hint": "The twist of the hot areas and the streaks. The value 0 gives soft areas with no streaks."
+          "Hint": "The bend of the hot veins. The crust does not bend. The value 0 gives veins with no bend."
         },
         "DetailAmount": {
           "Label": "Surface Detail",
-          "Hint": "The quantity of small hot flecks and grain. The value 0 gives smooth areas."
+          "Hint": "The roughness of the crust edges and the quantity of small veins. The value 0 gives smooth edges."
         },
         "ReliefAmount": {
           "Label": "Surface Relief",
-          "Hint": "The height of the rough surface in the light. The value 0 gives a flat surface."
+          "Hint": "The height of the rough crust surface in the light. The value 0 gives a flat crust."
         },
         "PulseAmount": {
           "Label": "Heat Pulse",
-          "Hint": "The change of the heat with time. The value 0 removes the pulse."
+          "Hint": "The change of the molten heat with time. The crust shape does not change. The value 0 removes the pulse."
         },
         "FlowAngle": {
           "Label": "Flow Direction",
@@ -151,7 +151,7 @@
         },
         "FlowAmount": {
           "Label": "Flow Speed",
-          "Hint": "The speed of the flow. The value 0 keeps the pattern at its position."
+          "Hint": "The speed of the flow. The crust moves at half of this speed, as a solid piece. At the value 0, the crust stays still and the veins still change."
         },
         "HeatRadius": {
           "Label": "Heat Glow Size",

@@ -56,25 +56,25 @@ export const EFFECTS = {
   },
   lava: {
     label: "TILE_FX_PAINTER.Config.Shader.Choices.Lava",
-    defaultColor: "#ff6a05",
+    defaultColor: "#e8400a",
     params: {
       // The part of the surface that is molten. A low value gives mostly crust.
-      moltenAmount: { default: 0.65, min: 0, max: 1, step: 0.05 },
+      moltenAmount: { default: 0.6, min: 0, max: 1, step: 0.05 },
       // The position on the color ramp of the molten rock. A higher value gives more yellow and white.
       heatLevel: { default: 1, min: 0, max: 2, step: 0.05 },
       // The quantity of map brightness in the crust. 0 gives a black crust.
-      crustBrightness: { default: 0.15, min: 0, max: 1, step: 0.05 },
-      // The force of the domain warp. 0 gives soft areas with no swirls and no streaks.
-      warpAmount: { default: 1.5, min: 0, max: 4, step: 0.05 },
-      // The quantity of small hot flecks and grain. 0 gives smooth areas.
+      crustBrightness: { default: 0.1, min: 0, max: 1, step: 0.05 },
+      // The bend of the molten veins. The crust does not bend. The maximum keeps the veins from a visible stretch.
+      warpAmount: { default: 1, min: 0, max: 1.5, step: 0.05 },
+      // The roughness of the crust edges and the quantity of small veins. 0 gives smooth edges.
       detailAmount: { default: 1, min: 0, max: 2, step: 0.05 },
-      // The height of the rough surface in the light. 0 gives a flat surface.
+      // The height of the rough crust surface in the light. 0 gives a flat crust.
       reliefAmount: { default: 1, min: 0, max: 2, step: 0.05 },
-      // The change of the heat with time. 0 removes the pulse.
+      // The change of the molten heat with time. The crust shape does not change. 0 removes the pulse.
       pulseAmount: { default: 0.5, min: 0, max: 1, step: 0.05 },
       // The flow direction in degrees, in the tile frame axes.
       flowAngle: { default: 0, min: 0, max: 360, step: 5 },
-      // The flow speed. 0 keeps the pattern at its position.
+      // The flow speed. The crust moves at half of this speed, as a solid piece. At 0, the crust stays still and the veins still change.
       flowAmount: { default: 0.05, min: 0, max: 1, step: 0.05 },
       // The size of the light past the mask, in grid squares at pattern scale 1. 0 removes the light.
       heatRadius: { default: 0.4, min: 0, max: 2, step: 0.05 }

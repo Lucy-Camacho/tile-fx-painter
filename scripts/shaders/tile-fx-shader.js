@@ -90,6 +90,20 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
   `;
 
   /**
+   * A replacement of the Foundry PRNG, for the Foundry NOISE and FBM helpers. A subclass adds it in place of PRNG.
+   * The Foundry PRNG multiplies each coordinate by large values. Near coordinate 1000, a 32-bit float keeps only 16 different
+   * results, and their mean is 0.35. The mod() in that PRNG also moves each negative coordinate near 1000.
+   * Thus a flow or a large tile makes the noise blocky and darker. This function uses fract first, thus all coordinates give the same quality.
+   */
+  static STABLE_PRNG = `
+    float random(in vec2 uv) {
+      vec3 v = fract(uv.xyx * 0.1031);
+      v += dot(v, v.yzx + 33.33);
+      return fract((v.x + v.y) * v.z);
+    }
+  `;
+
+  /**
    * A Voronoi pattern that also gives the cell edges. The Foundry VORONOI helper gives only the nearest distance,
    * and its cell points are all on a diagonal of the cell.
    * It is not a part of FX_COMMON, because it needs TWOPI. A subclass adds this field after CONSTANTS.
