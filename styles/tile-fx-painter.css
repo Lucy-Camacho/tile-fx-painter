@@ -11,6 +11,19 @@
   width: 100%;
 }
 
+.tile-fx-painter-param-group > summary {
+  font-weight: bold;
+  cursor: var(--cursor-pointer);
+}
+
+/* The core form styles put a gap between the children of a fieldset, but not between the children of a details element. */
+.tile-fx-painter-param-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
 .tile-fx-painter.effect-editor .window-content {
   padding: 0;
 }

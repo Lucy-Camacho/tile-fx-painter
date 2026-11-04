@@ -44,7 +44,23 @@
       },
       "Params": {
         "Legend": "{effect} Settings",
-        "Reset": "Reset to Defaults"
+        "Reset": "Reset to Defaults",
+        "Groups": {
+          "Coverage": "Coverage",
+          "Crust": "Crust",
+          "Film": "Rainbow Film",
+          "Fog": "Fog",
+          "Light": "Light",
+          "MoltenRock": "Molten Rock",
+          "Motion": "Motion",
+          "Nebula": "Nebula",
+          "Reflections": "Reflections",
+          "Rim": "Rim Light",
+          "Shore": "Shore and Depth",
+          "Stars": "Stars",
+          "Surface": "Surface",
+          "UnderIce": "Under the Ice"
+        }
       },
       "OpenEditor": {
         "Label": "Open Effect Editor",

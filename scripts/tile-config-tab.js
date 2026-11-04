@@ -11,23 +11,27 @@ const SHADER_CHOICES = {
   ...Object.fromEntries(Object.entries(EFFECTS).map(([id, effect]) => [id, effect.label]))
 };
 
+// The open sections of each open sheet, as a Set of "<effectId>.<groupId>".
+// Each render builds the tab again, thus a re-render needs this data to keep the sections open. The data goes when the sheet closes.
+const openParamGroups = new WeakMap();
+
 /**
- * Get the template data of the param group of each effect.
+ * Get the template data of the param groups of each effect.
  * The tab has the groups of all effects, because the sheet does not render again when the dropdown changes.
  * @param {TileDocument} tileData
  * @param {string} activeEffect  The id of the selected effect.
  * @param {string} idPrefix
+ * @param {Set<string>} openGroups  The open sections of the sheet.
  * @returns {object[]}
  */
-function getEffectParamGroups(tileData, activeEffect, idPrefix) {
+function getEffectParamGroups(tileData, activeEffect, idPrefix, openGroups) {
   return Object.entries(EFFECTS).map(([effectId, effect]) => {
     const values = getEffectParams(tileData, effectId);
     const keyPrefix = `TILE_FX_PAINTER.Params.${effectId.capitalize()}`;
-    return {
-      effectId,
-      legend: game.i18n.format("TILE_FX_PAINTER.Config.Params.Legend", { effect: game.i18n.localize(effect.label) }),
-      active: effectId === activeEffect,
-      fields: Object.entries(effect.params).map(([key, param]) => ({
+    const groups = new Map();
+    for (const [key, param] of Object.entries(effect.params)) {
+      if (!groups.has(param.group)) groups.set(param.group, []);
+      groups.get(param.group).push({
         id: `${idPrefix}-params-${effectId}-${key}`,
         name: `flags.${MODULE_ID}.params.${effectId}.${key}`,
         label: `${keyPrefix}.${key.capitalize()}.Label`,
@@ -37,6 +41,17 @@ function getEffectParamGroups(tileData, activeEffect, idPrefix) {
         max: param.max,
         step: param.step,
         defaultValue: param.default
+      });
+    }
+    return {
+      effectId,
+      legend: game.i18n.format("TILE_FX_PAINTER.Config.Params.Legend", { effect: game.i18n.localize(effect.label) }),
+      active: effectId === activeEffect,
+      groups: Array.from(groups, ([groupId, fields]) => ({
+        groupId,
+        label: `TILE_FX_PAINTER.Config.Params.Groups.${groupId.capitalize()}`,
+        open: openGroups.has(`${effectId}.${groupId}`),
+        fields
       }))
     };
   });
@@ -57,6 +72,8 @@ Hooks.on("renderTileConfig", async (app, element) => {
   const tileData = getSheetDocument(app);
   const flags = tileData.flags[MODULE_ID] ?? {};
   const settings = getEffectSettings(tileData);
+  const openGroups = openParamGroups.get(app) ?? new Set();
+  openParamGroups.set(app, openGroups);
   const html = await foundry.applications.handlebars.renderTemplate(TEMPLATE, {
     moduleId: MODULE_ID,
     tabId: TAB_ID,
@@ -76,7 +93,7 @@ Hooks.on("renderTileConfig", async (app, element) => {
     speed: settings.speed,
     scaleId: `${idPrefix}-scale`,
     scale: settings.scale,
-    effectParams: getEffectParamGroups(tileData, settings.effect, idPrefix),
+    effectParams: getEffectParamGroups(tileData, settings.effect, idPrefix, openGroups),
     // The editor saves the mask as an uploaded file. Users who cannot upload cannot use it.
     canOpenEditor: game.user.can("FILES_UPLOAD"),
     // "Create Tile" closes the sheet, thus the button stays disabled until the user opens the sheet of the created tile.
@@ -123,6 +140,16 @@ Hooks.on("renderTileConfig", async (app, element) => {
       // The value setter sends a change event that bubbles, thus the v14 preview also gets the defaults.
       for (const picker of fieldset.querySelectorAll("range-picker")) picker.value = picker.dataset.default;
     });
+
+    // The toggle event does not bubble, thus each section needs its own listener.
+    for (const section of fieldset.querySelectorAll("details[data-param-group]")) {
+      section.addEventListener("toggle", () => {
+        const key = `${fieldset.dataset.tileFxParams}.${section.dataset.paramGroup}`;
+        if (section.open) openGroups.add(key);
+        else openGroups.delete(key);
+        app.setPosition({ height: "auto" });
+      });
+    }
   }
 
   const tabs = element.querySelectorAll(`.tab[data-group="${group}"]`);
@@ -131,4 +158,8 @@ Hooks.on("renderTileConfig", async (app, element) => {
   app.setPosition({ height: "auto" });
 });
 
-Hooks.on("closeTileConfig", (app) => resetSheetDocument(app));
+Hooks.on("closeTileConfig", (app) => {
+  resetSheetDocument(app);
+  // Foundry keeps the sheet of a tile and uses it again. Without this delete, the sheet opens with the old sections open.
+  openParamGroups.delete(app);
+});

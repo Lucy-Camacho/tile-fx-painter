@@ -57,14 +57,21 @@
   <fieldset data-tile-fx-params="{{effectId}}" {{#unless active}}hidden disabled{{/unless}}>
     <legend>{{legend}}</legend>
 
-    {{#each fields}}
-    <div class="form-group">
-      <label for="{{id}}">{{localize label}}</label>
-      <div class="form-fields">
-        <range-picker id="{{id}}" name="{{name}}" value="{{value}}" min="{{min}}" max="{{max}}" step="{{step}}" data-default="{{defaultValue}}"></range-picker>
+    {{#each groups}}
+    <details class="tile-fx-painter-param-group" data-param-group="{{groupId}}" {{#if open}}open{{/if}}>
+      <summary>{{localize label}}</summary>
+      <div class="tile-fx-painter-param-fields">
+        {{#each fields}}
+        <div class="form-group">
+          <label for="{{id}}">{{localize label}}</label>
+          <div class="form-fields">
+            <range-picker id="{{id}}" name="{{name}}" value="{{value}}" min="{{min}}" max="{{max}}" step="{{step}}" data-default="{{defaultValue}}"></range-picker>
+          </div>
+          <p class="hint">{{localize hint}}</p>
+        </div>
+        {{/each}}
       </div>
-      <p class="hint">{{localize hint}}</p>
-    </div>
+    </details>
     {{/each}}
 
     <button type="button" class="tile-fx-painter-reset-params">
