@@ -136,6 +136,27 @@ export const EFFECTS = {
       // The strength of the pieces of ice that float below the surface. 0 removes them.
       floeAmount: { default: 0.6, min: 0, max: 1.5, step: 0.05 }
     }
+  },
+  astralVoid: {
+    label: "TILE_FX_PAINTER.Config.Shader.Choices.AstralVoid",
+    // The color of the clouds and the light at the mask edge. The second cloud color comes from this color.
+    defaultColor: "#5b2be0",
+    params: {
+      // The part of the cells that has a star.
+      starDensity: { default: 0.5, min: 0, max: 1, step: 0.05 },
+      // The brightness of the stars.
+      starBrightness: { default: 1, min: 0, max: 2, step: 0.05 },
+      // The change of the star brightness with time. 0 gives steady stars.
+      twinkleAmount: { default: 0.5, min: 0, max: 1, step: 0.05 },
+      // The brightness of the color clouds. 0 removes them.
+      nebulaAmount: { default: 0.7, min: 0, max: 1.5, step: 0.05 },
+      // The movement of the stars for a camera movement. 0 keeps them on the map.
+      depthAmount: { default: 0.5, min: 0, max: 2, step: 0.05 },
+      // The size of the light around the mask edge, in grid squares at pattern scale 1. 0 removes it.
+      rimRadius: { default: 0.25, min: 0, max: 1, step: 0.05 },
+      // The brightness of the light around the mask edge.
+      rimLight: { default: 1, min: 0, max: 2, step: 0.05 }
+    }
   }
 };
 

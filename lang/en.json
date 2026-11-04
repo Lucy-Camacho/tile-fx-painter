@@ -22,7 +22,8 @@
           "Liquid": "Liquid",
           "Lava": "Lava",
           "Water": "Water",
-          "Frost": "Frost"
+          "Frost": "Frost",
+          "AstralVoid": "Astral Void"
         }
       },
       "Intensity": {
@@ -245,6 +246,36 @@
         "FloeAmount": {
           "Label": "Floating Ice",
           "Hint": "The strength of the pieces of ice that float below the surface. The value 0 removes them."
+        }
+      },
+      "AstralVoid": {
+        "StarDensity": {
+          "Label": "Star Quantity",
+          "Hint": "The quantity of stars. The value 0 removes them."
+        },
+        "StarBrightness": {
+          "Label": "Star Brightness",
+          "Hint": "The brightness of the stars."
+        },
+        "TwinkleAmount": {
+          "Label": "Twinkle",
+          "Hint": "The change of the star brightness with time. The value 0 gives steady stars."
+        },
+        "NebulaAmount": {
+          "Label": "Nebula",
+          "Hint": "The brightness of the color clouds. The value 0 removes them."
+        },
+        "DepthAmount": {
+          "Label": "Depth",
+          "Hint": "The movement of the stars when the camera moves. A higher value makes the void look deeper. The value 0 keeps the stars on the map."
+        },
+        "RimRadius": {
+          "Label": "Rim Size",
+          "Hint": "The size of the light around the painted area, in grid squares at Pattern Scale 1. The value 0 removes the light."
+        },
+        "RimLight": {
+          "Label": "Rim Brightness",
+          "Hint": "The brightness of the light around the painted area. The value 0 removes the light."
         }
       }
     },
