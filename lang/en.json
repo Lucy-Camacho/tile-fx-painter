@@ -87,13 +87,17 @@
         }
       },
       "Metallic": {
-        "Shininess": {
-          "Label": "Highlight Sharpness",
-          "Hint": "A higher value gives smaller and sharper highlights."
+        "Smoothness": {
+          "Label": "Smoothness",
+          "Hint": "A low value gives rough metal with wide and dim reflections. A high value gives polished metal with narrow and bright reflections."
+        },
+        "GrainAmount": {
+          "Label": "Brush Lines",
+          "Hint": "The depth of the fine brush lines on the metal. The value 0 removes the lines."
         },
         "ShineBand": {
-          "Label": "Shine Band",
-          "Hint": "The brightness of the moving band of light. The value 0 removes the band."
+          "Label": "Reflection Bands",
+          "Hint": "The brightness of the moving bands of light. The value 0 removes the bands."
         },
         "CameraMotion": {
           "Label": "Camera Reflection",
