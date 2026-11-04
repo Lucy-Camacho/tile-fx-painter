@@ -21,7 +21,8 @@
           "Metallic": "Metallic",
           "Liquid": "Liquid",
           "Lava": "Lava",
-          "Water": "Water"
+          "Water": "Water",
+          "Frost": "Frost"
         }
       },
       "Intensity": {
@@ -194,6 +195,44 @@
         "FlowAmount": {
           "Label": "Flow Speed",
           "Hint": "The speed of the flow. The value 0 gives a still pool."
+        }
+      },
+      "Frost": {
+        "FrostCover": {
+          "Label": "Frost Cover",
+          "Hint": "The quantity of ice at full mask alpha. A low value shows only thin cracks and separate shards."
+        },
+        "EdgeRoughness": {
+          "Label": "Edge Roughness",
+          "Hint": "The shift of the edge of the painted area, in grid squares at Pattern Scale 1. The value 0 keeps the painted edge."
+        },
+        "EdgeFade": {
+          "Label": "Edge Fade",
+          "Hint": "The width of the fade from the ice to the map at a hard edge of the painted area, in grid squares at Pattern Scale 1. The value 0 gives a sudden edge."
+        },
+        "FogRadius": {
+          "Label": "Fog Size",
+          "Hint": "The distance of the fog from the border of the painted area, in grid squares at Pattern Scale 1. The value 0 removes the fog."
+        },
+        "FogAmount": {
+          "Label": "Fog Density",
+          "Hint": "The density of the fog on the border of the painted area. The value 0 removes the fog."
+        },
+        "FrostBlur": {
+          "Label": "Map Blur",
+          "Hint": "The blur radius of the map below the ice, in grid squares at Pattern Scale 1. The value 0 removes the blur."
+        },
+        "FrostTint": {
+          "Label": "Ice Color",
+          "Hint": "The quantity of effect color in the ice. The value 0 gives clear ice."
+        },
+        "RidgeAmount": {
+          "Label": "Cracks",
+          "Hint": "The brightness of the cracks and scratches in the ice. The value 0 removes them."
+        },
+        "SparkleAmount": {
+          "Label": "Sparkles",
+          "Hint": "The brightness of the sparkles. The value 0 removes them."
         }
       }
     },

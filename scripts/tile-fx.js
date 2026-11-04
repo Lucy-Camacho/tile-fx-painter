@@ -7,6 +7,7 @@ import { MetallicShader } from "./shaders/metallic.js";
 import { LiquidShader } from "./shaders/liquid.js";
 import { LavaShader } from "./shaders/lava.js";
 import { WaterShader } from "./shaders/water.js";
+import { FrostShader } from "./shaders/frost.js";
 
 /** The shader class of each effect. */
 const SHADERS = {
@@ -14,7 +15,8 @@ const SHADERS = {
   metallic: MetallicShader,
   liquid: LiquidShader,
   lava: LavaShader,
-  water: WaterShader
+  water: WaterShader,
+  frost: FrostShader
 };
 
 const meshes = new Map();

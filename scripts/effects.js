@@ -105,6 +105,31 @@ export const EFFECTS = {
       // The flow speed. 0 gives a still pool.
       flowAmount: { default: 0, min: 0, max: 1, step: 0.05 }
     }
+  },
+  frost: {
+    label: "TILE_FX_PAINTER.Config.Shader.Choices.Frost",
+    // The middle tone of the ice. The shader makes the deep and the light tones from this color.
+    defaultColor: "#2f7fb5",
+    params: {
+      // The quantity of ice at full mask alpha. A low value shows only thin cracks.
+      frostCover: { default: 1, min: 0, max: 1, step: 0.05 },
+      // The shift of the mask edge by noise, in grid squares at pattern scale 1. 0 keeps the painted edge.
+      edgeRoughness: { default: 0.15, min: 0, max: 0.5, step: 0.01 },
+      // The width of the fade from the ice to the map at a hard mask edge, in grid squares at pattern scale 1. 0 gives a sudden edge.
+      edgeFade: { default: 0.3, min: 0, max: 1, step: 0.05 },
+      // The distance of the fog from the mask border, in grid squares at pattern scale 1. 0 removes the fog.
+      fogRadius: { default: 0.4, min: 0, max: 2, step: 0.05 },
+      // The density of the fog. 0 removes the fog.
+      fogAmount: { default: 0.4, min: 0, max: 1, step: 0.05 },
+      // The blur radius of the map below the ice, in grid squares at pattern scale 1.
+      frostBlur: { default: 0.03, min: 0, max: 0.15, step: 0.01 },
+      // The quantity of effect color in the ice. 0 gives clear ice.
+      frostTint: { default: 0.5, min: 0, max: 1, step: 0.05 },
+      // The brightness of the cracks and scratches.
+      ridgeAmount: { default: 0.8, min: 0, max: 1.5, step: 0.05 },
+      // The brightness of the sparkles. 0 removes them.
+      sparkleAmount: { default: 0.6, min: 0, max: 2, step: 0.05 }
+    }
   }
 };
 
