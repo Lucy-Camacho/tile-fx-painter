@@ -128,7 +128,13 @@ export const EFFECTS = {
       // The brightness of the cracks and scratches.
       ridgeAmount: { default: 0.8, min: 0, max: 1.5, step: 0.05 },
       // The brightness of the sparkles. 0 removes them.
-      sparkleAmount: { default: 0.6, min: 0, max: 2, step: 0.05 }
+      sparkleAmount: { default: 0.6, min: 0, max: 2, step: 0.05 },
+      // The brightness of the soft reflections on the surface. 0 removes them.
+      shineAmount: { default: 0.25, min: 0, max: 1, step: 0.05 },
+      // The strength of the water that moves below the ice. 0 removes it.
+      currentAmount: { default: 0.6, min: 0, max: 1.5, step: 0.05 },
+      // The strength of the pieces of ice that float below the surface. 0 removes them.
+      floeAmount: { default: 0.6, min: 0, max: 1.5, step: 0.05 }
     }
   }
 };

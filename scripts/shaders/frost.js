@@ -11,13 +11,18 @@ const JAG_REACH = 0.7;
  * The local mask level and the cover set the ice thresholds. A lower value opens holes in the sheet that fade slowly to the map (sheetAlpha), and a very low value shows only thin cracks.
  * A sudden change of the mask, for example the edge of a hole, has no threshold range. There, the ice fades to the map (iceEdge).
  * A soft fog drifts along the border of the mask, on the ice and on the map. It can go past the tile frame.
- * The ice has no time input, because a growth with time needs a start time that all clients share. Only the sparkles and the fog move.
+ * The surface of the ice has no time input, because a growth with time needs a start time that all clients share.
+ * Below the surface, water and pieces of ice move (underLayer). They show more in the clear ice than in the cloudy ice, and they shift with the camera. Thus they look deep.
+ * A soft reflection moves over the surface with the time and with the camera (surfaceShine). The sparkles and the fog also move.
  */
 export class FrostShader extends TileFxShader {
   static usesMaskMipmaps = true;
 
+  static usesViewTransform = true;
+
   static defaultUniforms = {
     ...super.defaultUniforms,
+    viewTransform: [1, 1, 0, 0],
     ...getParamDefaults("frost")
   };
 
@@ -39,6 +44,7 @@ export class FrostShader extends TileFxShader {
     ${this.NOISE}
     ${this.VORONOI_CELLS}
     ${this.MASK_BLUR}
+    ${this.VIEW_OFFSET}
 
     // The params of the tile (EFFECTS.frost.params).
     uniform float frostCover;
@@ -50,6 +56,9 @@ export class FrostShader extends TileFxShader {
     uniform float frostTint;
     uniform float ridgeAmount;
     uniform float sparkleAmount;
+    uniform float shineAmount;
+    uniform float currentAmount;
+    uniform float floeAmount;
 
     // Tuning values of the large tone areas.
     const float ZONE_FREQ = 0.42;       // The number of deep and light areas along one pattern unit.
@@ -130,6 +139,43 @@ export class FrostShader extends TileFxShader {
     const float FOG_THIN = 0.25;        // The density at the thinnest part of a cloud. Above 0, the fog has no gaps on the border.
     const float FOG_MAX = 0.9;          // The maximum alpha of the fog. Thus the ice and the map always show a little.
     const float FOG_WHITE = 0.75;       // The quantity of white in the fog color.
+
+    // Tuning values of the surface shine.
+    const vec2 SHINE_DIR = vec2(0.53, 0.848);  // The direction across the streaks, in the tile axes.
+    const float SHINE_FREQ = 0.4;       // The number of streaks along one pattern unit.
+    const float SHINE_BEND = 0.55;      // The bend of the streaks by the soft bumps of the surface. A high value looks like lightning.
+    const float SHINE_GAP_FREQ = 0.5;   // The number of areas with or without a streak along one pattern unit.
+    const float SHINE_RATE = 0.03;      // The movement of the streaks, in streak distances each second.
+    const float SHINE_TILT = 1.0;       // The shift of the streaks at the view radius, in pattern units.
+    const float SHINE_WIDE = 3.0;       // A higher value gives a thinner soft light around a streak.
+    const float SHINE_CORE = 14.0;      // A higher value gives a thinner bright center of a streak.
+    const float SHINE_MATTE = 0.75;     // The drop of the shine on a white patch, because a patch is rough.
+    const float SHINE_LINES = 0.8;      // The added brightness of a scratch in a reflection.
+
+    // Tuning values of the layer below the ice.
+    const float UNDER_PARALLAX = 0.5;   // The shift of the deepest layer at the view radius, in pattern units.
+    const float UNDER_HIDDEN = 0.45;    // How much of the layer shows through the most cloudy ice.
+    const float CURRENT_FREQ = 0.6;     // The number of large water shapes along one pattern unit.
+    const vec2 CURRENT_DRIFT_A = vec2(0.07, 0.03);    // The movement of the water, in pattern units each second.
+    const vec2 CURRENT_DRIFT_B = vec2(-0.04, 0.06);   // A different direction. Thus the water changes its shape and does not only slide.
+    const float CURRENT_WARP = 1.6;     // The bend of the water shapes by the slow sway.
+    const float CURRENT_DEEP = 0.5;     // The maximum drop of the brightness in the deep water.
+    const float CURRENT_VEIN = 0.22;    // The brightness of the light lines in the water.
+    const float CURRENT_BEND = 0.12;    // The maximum shift of the map, in pattern units.
+    const float FLOE_FREQ_NEAR = 0.85;  // The number of cells of the near pieces along one pattern unit.
+    const float FLOE_FREQ_FAR = 1.6;    // The number of cells of the far pieces along one pattern unit.
+    const vec2 FLOE_DRIFT_NEAR = vec2(0.075, -0.035);  // The movement of the near pieces, in pattern units each second.
+    const vec2 FLOE_DRIFT_FAR = vec2(0.035, 0.03);     // The far pieces move more slowly, and in a different direction.
+    const float FLOE_CHANCE = 0.36;     // The part of the cells that has a piece.
+    const float FLOE_SWAY = 0.12;       // The shift of the pieces by the slow sway of the water, in pattern units.
+    const float FLOE_SOFT = 0.2;        // The half width of the blurred edge of a piece, as a part of its radius.
+    const float FLOE_STRETCH = 0.9;     // The maximum change of a piece along one axis. Without it, the pieces look like regular hexagons.
+    const float FLOE_CORE = 0.45;       // The drop of the light from the center of a piece to its edge. Thus a piece does not look flat.
+    const float FLOE_SHADOW = 0.3;      // The quantity of the deep color around a piece.
+    const float FLOE_LIGHT = 0.8;       // The maximum quantity of the piece color.
+    const float FLOE_BOOST = 1.3;       // Floating Ice 1 is above full strength in the clear ice, because the surface detail hides a weak piece.
+    const float FLOE_FAR_LIGHT = 0.5;   // The brightness of the far pieces, as a part of the near pieces.
+    const mat2 FLOE_SIDE_TURN = mat2(0.5, 0.866, -0.866, 0.5);  // A turn of 60 degrees, from one side of a piece to the next.
 
     // Each octave turns, because octaves on the same axes give the value noise a square shape.
     const mat2 OCTAVE_TURN = mat2(0.8, 0.6, -0.6, 0.8);
@@ -333,6 +379,93 @@ export class FrostShader extends TileFxShader {
       return vec3(clamp(tone, 0.0, 1.0), white, lines);
     }
 
+    // The color of the ice, from a deep color through the effect color to a light color.
+    // The square and the square root of the effect color keep its hue.
+    vec3 iceColor(float tone) {
+      vec3 color = mix(effectColor * effectColor * DEEP_COLOR, effectColor, smoothstep(0.0, 0.5, tone));
+      return mix(color, sqrt(effectColor), smoothstep(0.5, 1.0, tone));
+    }
+
+    // Long soft streaks of reflected sky, from 0 to 1. They slide with the time and with the camera, and the ice does not move.
+    // A reflection of one light shows only where the slope agrees with the light. Thus it makes one hot spot on a flat sheet, and these streaks cover all of the ice.
+    float surfaceShine(vec2 pos, vec2 view) {
+      // The turn hides the square lattice of the noise.
+      vec2 p = OCTAVE_TURN * pos;
+      float bumps = (noise(p) * 0.7) + (noise((OCTAVE_TURN * p * 2.3) + 5.9) * 0.3);
+      float streak = (dot(pos + (view * SHINE_TILT), SHINE_DIR) * SHINE_FREQ) + (bumps * SHINE_BEND) - (phase * SHINE_RATE);
+      float wave = 0.5 + (0.5 * cos(streak * TWOPI));
+      // Without the gaps, the streaks are regular stripes from side to side.
+      float gaps = smoothstep(0.42, 0.62, noise((p * SHINE_GAP_FREQ) + vec2(3.1, 8.7)));
+      return ((pow(wave, SHINE_WIDE) * 0.45) + (pow(wave, SHINE_CORE) * 0.55)) * gaps;
+    }
+
+    // The slow water below the ice. x, y: a sway, from -0.5 to 0.5. z: the water shapes, with a mean of 0.5.
+    vec3 waterFlow(vec2 pos) {
+      vec2 p = pos * CURRENT_FREQ;
+      vec2 sway = vec2(noise(p + (CURRENT_DRIFT_A * phase)), noise((OCTAVE_TURN * p) + (CURRENT_DRIFT_B * phase) + 6.1)) - 0.5;
+      return vec3(sway, softClouds((p * 1.7) + (sway * CURRENT_WARP) + ((CURRENT_DRIFT_A + CURRENT_DRIFT_B) * phase)));
+    }
+
+    // A layer of pieces of ice, at most one for each cell. Each piece moves and turns alone, as one solid shape. Noise shapes would flow like smoke.
+    // x: the piece, from 0 to 1. y: the soft shadow around the piece, from 0 to 1.
+    vec2 floeLayer(vec2 pos, float freq, float seed) {
+      vec2 p = pos * freq;
+      vec2 cell = floor(p);
+      vec2 result = vec2(0.0);
+      for ( float y = -1.0; y <= 1.0; y++ ) {
+        for ( float x = -1.0; x <= 1.0; x++ ) {
+          vec2 id = cell + vec2(x, y);
+          vec2 hash = cellHash(id + seed);
+          if ( fract(hash.x * 7.0) > FLOE_CHANCE ) continue;
+          float orbit = (phase * mix(0.06, 0.16, fract(hash.y * 3.0))) + (TWOPI * fract(hash.x * 13.0));
+          vec2 center = id + 0.3 + (0.4 * hash) + (0.12 * vec2(cos(orbit), sin(orbit)));
+          vec2 delta = p - center;
+          // The center is at most 0.82 from the cell start, thus a piece can reach 1.18 and stay in the search.
+          // The largest side distance is 1.35 times the radius, thus the farthest corner is 1.56 times the radius.
+          // The shadow stops at 1.5 times this distance. The result is 2.34 times the radius (1.12 at the largest radius), and its square is 5.5.
+          float radius = mix(0.22, 0.48, fract(hash.y * 5.0));
+          if ( dot(delta, delta) >= (5.5 * radius * radius) ) continue;
+          float turn = (TWOPI * fract(hash.x * 3.0)) + (phase * (fract(hash.y * 7.0) - 0.5) * 0.12);
+          vec2 normal = vec2(cos(turn), sin(turn));
+          // This only makes the shape smaller along one axis, thus the distance limit above stays correct.
+          delta += normal * dot(delta, normal) * FLOE_STRETCH * fract(hash.x * 17.0);
+          float shape = 0.0;
+          // Sides at different distances give a broken shape with straight edges, as a real piece of ice.
+          for ( float side = 1.0; side <= 6.0; side++ ) {
+            shape = max(shape, dot(delta, normal) / (radius * (0.55 + (0.8 * fract((hash.y * side * 7.3) + (hash.x * side))))));
+            normal = FLOE_SIDE_TURN * normal;
+          }
+          float light = mix(0.6, 1.0, fract(hash.y * 11.0)) * (1.0 - (FLOE_CORE * smoothstep(0.0, 1.0, shape)));
+          result.x = max(result.x, (1.0 - smoothstep(1.0 - FLOE_SOFT, 1.0 + FLOE_SOFT, shape)) * light);
+          result.y = max(result.y, 1.0 - smoothstep(1.0, 1.5, shape));
+        }
+      }
+      return result;
+    }
+
+    // The color below the ice, from the color of the ice and the map. The tone is the tone of the ice, because the cloudy ice hides more.
+    vec3 underLayer(vec3 color, vec3 flow, vec2 pos, vec2 view, float tone) {
+      float clear = mix(UNDER_HIDDEN, 1.0, 1.0 - smoothstep(0.3, 0.85, tone));
+      if ( currentAmount > 0.0 ) {
+        float depth = min(currentAmount * clear, 1.0);
+        // The deep water goes to the deep ice color and not to black, thus it keeps the hue of the ice.
+        color = mix(color, iceColor(0.0), CURRENT_DEEP * depth * (1.0 - smoothstep(0.34, 0.6, flow.z)));
+        // The value is near 0.5 only on a thin line, thus the water has soft moving lines of light.
+        color += sqrt(effectColor) * CURRENT_VEIN * depth * (1.0 - smoothstep(0.0, 0.05, abs(flow.z - 0.5)));
+      }
+      if ( floeAmount > 0.0 ) {
+        vec2 deep = pos + (flow.xy * FLOE_SWAY);
+        vec2 far = floeLayer(deep + (view * UNDER_PARALLAX) - (FLOE_DRIFT_FAR * phase), FLOE_FREQ_FAR, 97.0);
+        vec2 near = floeLayer(deep + (view * UNDER_PARALLAX * 0.6) - (FLOE_DRIFT_NEAR * phase), FLOE_FREQ_NEAR, 113.0);
+        float show = min(floeAmount * FLOE_BOOST * clear, 1.0);
+        vec3 floeColor = mix(sqrt(effectColor), vec3(1.0), 0.3);
+        color = mix(color, iceColor(0.0), FLOE_SHADOW * show * max(near.y, far.y * FLOE_FAR_LIGHT));
+        color = mix(color, floeColor, far.x * FLOE_LIGHT * FLOE_FAR_LIGHT * show);
+        color = mix(color, floeColor, near.x * FLOE_LIGHT * show);
+      }
+      return color;
+    }
+
     // The alpha of the sheet of ice, from the cover. The height has no sudden steps and the threshold range is wide.
     // Thus a lower cover opens holes that fade slowly to the map. A height with steps, for example from Voronoi cells, gives hard hole edges.
     float sheetAlpha(vec2 pos, float cover) {
@@ -345,17 +478,10 @@ export class FrostShader extends TileFxShader {
       return smoothstep(threshold - SHEET_FADE, threshold + SHEET_FADE, height);
     }
 
-    // The color of the ice, from a deep color through the effect color to a light color.
-    // The square and the square root of the effect color keep its hue.
-    vec3 iceColor(float tone) {
-      vec3 color = mix(effectColor * effectColor * DEEP_COLOR, effectColor, smoothstep(0.0, 0.5, tone));
-      return mix(color, sqrt(effectColor), smoothstep(0.5, 1.0, tone));
-    }
-
-    // The map below the ice: the center and 8 fixed points. A random turn at each pixel would show as grain.
+    // The map below the ice at a mask UV: the center and 8 fixed points. A random turn at each pixel would show as grain.
     // Do not use mipmaps here, because Foundry shares this texture with its own background mesh.
     // A point outside the map uses the center color. Thus the blur shows no dark line at the map edge.
-    vec3 blurredMap(vec4 center) {
+    vec3 blurredMap(vec4 center, vec2 uv) {
       vec3 color = unpremultiply(center);
       if ( frostBlur <= 0.0 ) return color;
       vec2 radius = vec2(frostBlur * gridSize * patternScale) / tileSize;
@@ -364,7 +490,7 @@ export class FrostShader extends TileFxShader {
         for ( float y = -1.0; y <= 1.0; y++ ) {
           if ( (x == 0.0) && (y == 0.0) ) continue;
           float dist = (x * y) != 0.0 ? BLUR_DIAGONAL : 1.0;
-          vec4 point = sampleBase(vUvs + (vec2(x, y) * radius * dist));
+          vec4 point = sampleBase(uv + (vec2(x, y) * radius * dist));
           color += point.a > 0.0 ? unpremultiply(point) : centerColor;
         }
       }
@@ -417,14 +543,31 @@ export class FrostShader extends TileFxShader {
       float ice = max(lines, sheetAlpha(pos, cover)) * edge.y;
       if ( ice <= 0.0 ) return vec4(0.0);
 
+      // The view in the tile axes, because the pattern uses these axes. Thus the deep layer shifts in the correct direction on a turned tile.
+      vec2 screenView = viewOffset();
+      vec2 view = vec2(dot(screenView, normalize(sceneMatrix[0].xy * viewTransform.xy)), dot(screenView, normalize(sceneMatrix[1].xy * viewTransform.xy)));
+      bool hasUnder = (currentAmount > 0.0) || (floeAmount > 0.0);
+      vec3 flow = hasUnder ? waterFlow(pos + (view * UNDER_PARALLAX * 0.8)) : vec3(0.0, 0.0, 0.5);
+
+      // The moving water bends the map. A bent point outside the map uses the point below the pixel. Thus the map edge does not flicker.
+      vec2 mapUv = vUvs + (flow.xy * min(currentAmount, 1.0) * CURRENT_BEND * gridSize * patternScale / tileSize);
+      vec4 base = sampleBase(mapUv);
+      if ( base.a <= 0.0 ) {
+        mapUv = vUvs;
+        base = sampleBase(mapUv);
+      }
       // With no background, the ice color replaces the map.
-      vec4 base = sampleBase(vUvs);
-      vec3 map = base.a > 0.0 ? blurredMap(base) : iceColor(surface.x);
+      vec3 map = base.a > 0.0 ? blurredMap(base, mapUv) : iceColor(surface.x);
       vec3 color = mix(map, iceColor(surface.x), frostTint);
+      if ( hasUnder ) color = underLayer(color, flow, pos, view, surface.x);
 
       vec3 whiteColor = mix(sqrt(effectColor), vec3(1.0), 0.7);
       color = mix(color, whiteColor, surface.y);
       color += whiteColor * surface.z * ridgeAmount;
+      if ( shineAmount > 0.0 ) {
+        float shine = surfaceShine(pos, view) * shineAmount * (1.0 - (SHINE_MATTE * surface.y));
+        color += whiteColor * shine * (1.0 + (surface.z * SHINE_LINES));
+      }
       if ( sparkleAmount > 0.0 ) color += vec3(sparkles(pos, pixelSize) * sparkleAmount);
 
       // The color must not be more than the alpha (ice), because the output is premultiplied.

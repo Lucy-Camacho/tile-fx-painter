@@ -233,6 +233,18 @@
         "SparkleAmount": {
           "Label": "Sparkles",
           "Hint": "The brightness of the sparkles. The value 0 removes them."
+        },
+        "ShineAmount": {
+          "Label": "Surface Shine",
+          "Hint": "The brightness of the soft reflections on the ice. They move slowly, and they also move with the camera. The value 0 removes them."
+        },
+        "CurrentAmount": {
+          "Label": "Water Below",
+          "Hint": "The strength of the water that moves below the ice. It also bends the map a little. The value 0 removes it."
+        },
+        "FloeAmount": {
+          "Label": "Floating Ice",
+          "Hint": "The strength of the pieces of ice that float below the surface. The value 0 removes them."
         }
       }
     },

@@ -11,6 +11,9 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
   /** A subclass with MASK_BLUR sets this to true, because the blur reads the mip levels of the mask. */
   static usesMaskMipmaps = false;
 
+  /** A subclass with VIEW_OFFSET sets this to true, and adds viewTransform to its default uniforms. */
+  static usesViewTransform = false;
+
   static defaultUniforms = {
     ...super.defaultUniforms,
     intensity: 1,
@@ -204,6 +207,20 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
     }
   `;
 
+  /**
+   * The position of a pixel relative to the camera. A subclass adds this field, and it also sets usesViewTransform to true.
+   * Thus a reflection or a deep layer can move with the camera of each client.
+   */
+  static VIEW_OFFSET = `
+    // Changes a position in the scene rectangle (from sceneMatrix) to the offset from the camera center.
+    // The offset is 1 at the view radius: offset = scenePos * viewTransform.xy + viewTransform.zw.
+    uniform vec4 viewTransform;
+
+    vec2 viewOffset() {
+      return ((sceneMatrix * vec3(vUvs, 1.0)).xy * viewTransform.xy) + viewTransform.zw;
+    }
+  `;
+
   /** Each subclass overrides this field. The base class shows no effect. */
   static _effectShader = `
     vec4 _main() {
@@ -259,6 +276,19 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
     if ( this.constructor.usesMaskMipmaps ) {
       const maskTexture = mesh.texture?.baseTexture;
       if ( maskTexture && !maskTexture.destroyed ) maskTexture.mipmap = PIXI.MIPMAP_MODES.ON;
+    }
+
+    if ( this.constructor.usesViewTransform ) {
+      // The view radius is half of the longer screen side, in scene pixels. One radius for both axes prevents a stretched offset.
+      const { sceneX, sceneY, sceneWidth, sceneHeight } = canvas.dimensions;
+      const [screenWidth, screenHeight] = canvas.screenDimensions;
+      const { pivot, scale } = canvas.stage;
+      const radius = Math.max((0.5 * Math.max(screenWidth, screenHeight)) / scale.x, 1);
+      const view = uniforms.viewTransform;
+      view[0] = sceneWidth / radius;
+      view[1] = sceneHeight / radius;
+      view[2] = (sceneX - pivot.x) / radius;
+      view[3] = (sceneY - pivot.y) / radius;
     }
 
     // Check the texture each frame, because the Foundry texture cache can unload it.

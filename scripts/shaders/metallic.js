@@ -7,6 +7,8 @@ import { getParamDefaults } from "../effects.js";
  * The reflections also move with the camera of each client, as on a real metal surface.
  */
 export class MetallicShader extends TileFxShader {
+  static usesViewTransform = true;
+
   static defaultUniforms = {
     ...super.defaultUniforms,
     viewTransform: [1, 1, 0, 0],
@@ -18,10 +20,7 @@ export class MetallicShader extends TileFxShader {
     return `
     ${this.CONSTANTS}
     ${this.PERCEIVED_BRIGHTNESS}
-
-    // Changes a position in the scene rectangle (from sceneMatrix) to the offset from the camera center.
-    // The offset is 1 at the view radius: offset = scenePos * viewTransform.xy + viewTransform.zw.
-    uniform vec4 viewTransform;
+    ${this.VIEW_OFFSET}
 
     // The params of the tile (EFFECTS.metallic.params).
     uniform float shininess;          // The specular exponent.
@@ -45,7 +44,7 @@ export class MetallicShader extends TileFxShader {
       float luma = base.a > 0.0 ? perceivedBrightness(unpremultiply(base)) : 0.5;
 
       // The eye is above the camera center. Thus a pixel away from the center sees the metal at an angle.
-      vec2 offset = ((sceneMatrix * vec3(vUvs, 1.0)).xy * viewTransform.xy) + viewTransform.zw;
+      vec2 offset = viewOffset();
       vec3 view = normalize(vec3(-offset * VIEW_TILT * cameraMotion, 1.0));
 
       // A light that turns slowly around the area. The metal is flat, thus its normal is (0, 0, 1).
@@ -77,20 +76,5 @@ export class MetallicShader extends TileFxShader {
       return vec4(metal * s, s) * tintAlpha.a;
     }
   `;
-  }
-
-  /** @override */
-  _preRender(mesh, renderer) {
-    super._preRender(mesh, renderer);
-    // The view radius is half of the longer screen side, in scene pixels. One radius for both axes prevents a stretched offset.
-    const { sceneX, sceneY, sceneWidth, sceneHeight } = canvas.dimensions;
-    const [screenWidth, screenHeight] = canvas.screenDimensions;
-    const { pivot, scale } = canvas.stage;
-    const radius = Math.max((0.5 * Math.max(screenWidth, screenHeight)) / scale.x, 1);
-    const view = this.uniforms.viewTransform;
-    view[0] = sceneWidth / radius;
-    view[1] = sceneHeight / radius;
-    view[2] = (sceneX - pivot.x) / radius;
-    view[3] = (sceneY - pivot.y) / radius;
   }
 }
