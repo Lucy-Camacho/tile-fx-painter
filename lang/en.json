@@ -20,7 +20,8 @@
           "Glow": "Glow",
           "Metallic": "Metallic",
           "Liquid": "Liquid",
-          "Lava": "Lava"
+          "Lava": "Lava",
+          "Water": "Water"
         }
       },
       "Intensity": {
@@ -155,6 +156,44 @@
         "HeatRadius": {
           "Label": "Heat Glow Size",
           "Hint": "The size of the light around the painted area, in grid squares at Pattern Scale 1. The value 0 removes the light."
+        }
+      },
+      "Water": {
+        "DepthTint": {
+          "Label": "Deep Water Color",
+          "Hint": "The quantity of effect color at the center of the water. The value 0 gives clear water."
+        },
+        "ShoreWidth": {
+          "Label": "Shore Width",
+          "Hint": "The distance from the edge of the painted area to the deep water, in grid squares at Pattern Scale 1."
+        },
+        "FoamAmount": {
+          "Label": "Foam",
+          "Hint": "The brightness of the foam at the edge of the painted area. The value 0 removes the foam."
+        },
+        "CausticAmount": {
+          "Label": "Light Patterns",
+          "Hint": "The brightness of the light patterns on the bottom. The value 0 removes them."
+        },
+        "WaveHeight": {
+          "Label": "Waves",
+          "Hint": "The height of the surface waves. The value 0 gives a flat surface."
+        },
+        "RefractAmount": {
+          "Label": "Distortion",
+          "Hint": "The maximum shift of the map under the water, in grid squares at Pattern Scale 1."
+        },
+        "SpecularAmount": {
+          "Label": "Highlights",
+          "Hint": "The brightness of the sun highlights on the waves."
+        },
+        "FlowAngle": {
+          "Label": "Flow Direction",
+          "Hint": "The flow direction in degrees. The direction turns with the tile."
+        },
+        "FlowAmount": {
+          "Label": "Flow Speed",
+          "Hint": "The speed of the flow. The value 0 gives a still pool."
         }
       }
     },

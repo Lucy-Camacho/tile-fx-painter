@@ -79,6 +79,32 @@ export const EFFECTS = {
       // The size of the light past the mask, in grid squares at pattern scale 1. 0 removes the light.
       heatRadius: { default: 0.4, min: 0, max: 2, step: 0.05 }
     }
+  },
+  water: {
+    label: "TILE_FX_PAINTER.Config.Shader.Choices.Water",
+    // The color of the deep water.
+    defaultColor: "#1f6f8b",
+    params: {
+      // The quantity of effect color at the center of the water.
+      depthTint: { default: 0.55, min: 0, max: 1, step: 0.05 },
+      // The distance from the mask edge to the deep water, in grid squares at pattern scale 1.
+      // It is more than 0, because the mask blur needs a radius.
+      shoreWidth: { default: 0.75, min: 0.1, max: 3, step: 0.05 },
+      // The brightness of the foam at the mask edge. 0 removes the foam.
+      foamAmount: { default: 0.4, min: 0, max: 1, step: 0.05 },
+      // The brightness of the light patterns on the bottom.
+      causticAmount: { default: 0.6, min: 0, max: 2, step: 0.05 },
+      // The height of the surface waves. 0 gives a flat surface.
+      waveHeight: { default: 0.5, min: 0, max: 2, step: 0.05 },
+      // The maximum shift of the map under the water, in grid squares at pattern scale 1.
+      refractAmount: { default: 0.04, min: 0, max: 0.2, step: 0.01 },
+      // The brightness of the sun highlights on the waves.
+      specularAmount: { default: 0.6, min: 0, max: 1.5, step: 0.05 },
+      // The flow direction in degrees, in the tile frame axes.
+      flowAngle: { default: 0, min: 0, max: 360, step: 5 },
+      // The flow speed. 0 gives a still pool.
+      flowAmount: { default: 0, min: 0, max: 1, step: 0.05 }
+    }
   }
 };
 

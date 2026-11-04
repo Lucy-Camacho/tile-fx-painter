@@ -6,13 +6,15 @@ import { GlowShader } from "./shaders/glow.js";
 import { MetallicShader } from "./shaders/metallic.js";
 import { LiquidShader } from "./shaders/liquid.js";
 import { LavaShader } from "./shaders/lava.js";
+import { WaterShader } from "./shaders/water.js";
 
 /** The shader class of each effect. */
 const SHADERS = {
   glow: GlowShader,
   metallic: MetallicShader,
   liquid: LiquidShader,
-  lava: LavaShader
+  lava: LavaShader,
+  water: WaterShader
 };
 
 const meshes = new Map();
