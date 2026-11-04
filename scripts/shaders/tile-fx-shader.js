@@ -8,6 +8,9 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
   /** No batch plugin: each mesh draws alone, so it can have its own uniforms. */
   static classPluginName = null;
 
+  /** A subclass with MASK_BLUR sets this to true, because the blur reads the mip levels of the mask. */
+  static usesMaskMipmaps = false;
+
   static defaultUniforms = {
     ...super.defaultUniforms,
     intensity: 1,
@@ -86,6 +89,107 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
     }
   `;
 
+  /**
+   * A Voronoi pattern that also gives the cell edges. The Foundry VORONOI helper gives only the nearest distance,
+   * and its cell points are all on a diagonal of the cell.
+   * It is not a part of FX_COMMON, because it needs TWOPI. A subclass adds this field after CONSTANTS.
+   */
+  static VORONOI_CELLS = `
+    // Two random values from 0 to 1 for a cell. It uses no integers, because the int precision of this shader can be
+    // mediump, and no sin, because the result of a large sin is different on some drivers.
+    vec2 cellHash(vec2 cell) {
+      vec3 v = fract(vec3(cell.x, cell.y, cell.x + cell.y) * vec3(0.1127, 0.1301, 0.0877));
+      v += dot(v, v.yzx + 23.17);
+      return fract(vec2(v.x + v.y, v.y + v.z) * v.zx);
+    }
+
+    // x: the distance to the nearest cell point (F1). y: the distance to the second nearest point (F2).
+    // z: a random value of the nearest cell, from 0 to 1.
+    // F2 - F1 is 0 on a cell edge. It is not the exact distance to the edge, but it reads only 9 cells.
+    // Each point moves with t on a small circle. The point stays in its cell, thus 9 cells always contain the nearest point.
+    vec3 voronoiCells(vec2 pos, float t) {
+      vec2 cell = floor(pos);
+      vec2 local = pos - cell;
+      float nearest = 8.0;
+      float second = 8.0;
+      float id = 0.0;
+      for ( float y = -1.0; y <= 1.0; y++ ) {
+        for ( float x = -1.0; x <= 1.0; x++ ) {
+          vec2 neighbor = vec2(x, y);
+          vec2 hash = cellHash(cell + neighbor);
+          float angle = t + (TWOPI * fract(hash.x * 13.0));
+          vec2 delta = neighbor + 0.15 + (0.7 * hash) + (0.15 * vec2(cos(angle), sin(angle))) - local;
+          float dist = dot(delta, delta);
+          if ( dist < nearest ) {
+            second = nearest;
+            nearest = dist;
+            id = fract(hash.y * 13.0);
+          }
+          else if ( dist < second ) second = dist;
+        }
+      }
+      return vec3(sqrt(nearest), sqrt(second), id);
+    }
+  `;
+
+  /**
+   * A soft blur of the mask. A subclass adds this field after CONSTANTS, because it needs TWOPI.
+   * It also sets usesMaskMipmaps to true.
+   * The radius is in mask UV units. It must be more than 0, because the mip level uses log2. The caller tests this.
+   */
+  static MASK_BLUR = `
+    const float MASK_BLUR_SIGMA = 0.4;  // The Gaussian width, as a fraction of the radius.
+
+    // The mask alpha at a mask UV and mip level. It goes to 0 outside the texture, because the texture clamps at its edge.
+    // The alpha fades over one mip texel at the edge. A sudden stop would show each blur sample as a hard line past the frame.
+    float maskAlpha(vec2 uv, float lod) {
+      vec2 texel = exp2(lod) / vec2(textureSize(sampler, 0));
+      vec2 cover = clamp((min(uv, 1.0 - uv) / texel) + 0.5, 0.0, 1.0);
+      return textureLod(sampler, uv, lod).a * cover.x * cover.y;
+    }
+
+    // The mip level with one texel for each sample step. Thus the samples overlap, and the blur shows no ring bands.
+    float maskBlurLod(vec2 sampleStep) {
+      vec2 stepTexels = sampleStep * vec2(textureSize(sampler, 0));
+      return max(log2(max(stepTexels.x, stepTexels.y)), 0.0);
+    }
+
+    // One ring of the blur. Each ring turns by a different part of its step, to avoid a visible star shape.
+    float maskBlurRing(vec2 radius, float dist, float count, float lod) {
+      float total = 0.0;
+      float offset = dist * (TWOPI / count) * 0.5;
+      for ( float i = 0.0; i < count; i++ ) {
+        float angle = (i * (TWOPI / count)) + offset;
+        total += maskAlpha(vUvs + (vec2(cos(angle), sin(angle)) * radius * dist), lod);
+      }
+      return total / count;
+    }
+
+    // A Gaussian blur of the mask: the center and 3 rings, about one third of the radius apart (37 samples).
+    float maskBlur(vec2 radius) {
+      float lod = maskBlurLod(radius / 3.0);
+      float w1 = exp(-(1.0 / 9.0) / (2.0 * MASK_BLUR_SIGMA * MASK_BLUR_SIGMA));
+      float w2 = exp(-(4.0 / 9.0) / (2.0 * MASK_BLUR_SIGMA * MASK_BLUR_SIGMA));
+      float w3 = exp(-1.0 / (2.0 * MASK_BLUR_SIGMA * MASK_BLUR_SIGMA));
+      // The ring weights also count the ring sizes (6, 12, 18 samples), because a larger ring covers more area.
+      float total = maskAlpha(vUvs, lod)
+        + (maskBlurRing(radius, 1.0 / 3.0, 6.0, lod) * w1 * 6.0)
+        + (maskBlurRing(radius, 2.0 / 3.0, 12.0, lod) * w2 * 12.0)
+        + (maskBlurRing(radius, 1.0, 18.0, lod) * w3 * 18.0);
+      return total / (1.0 + (w1 * 6.0) + (w2 * 12.0) + (w3 * 18.0));
+    }
+
+    // A cheaper blur with no fine detail: the center and one ring of 6 points at two thirds of the radius (7 samples).
+    // The 6 points are one ring distance apart, thus the mip level uses this distance as its step.
+    float maskBlurCoarse(vec2 radius) {
+      float dist = 2.0 / 3.0;
+      float lod = maskBlurLod(radius * dist);
+      float w = exp(-(dist * dist) / (2.0 * MASK_BLUR_SIGMA * MASK_BLUR_SIGMA));
+      float total = maskAlpha(vUvs, lod) + (maskBlurRing(radius, dist, 6.0, lod) * w * 6.0);
+      return total / (1.0 + (w * 6.0));
+    }
+  `;
+
   /** Each subclass overrides this field. The base class shows no effect. */
   static _effectShader = `
     vec4 _main() {
@@ -101,6 +205,17 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
    */
   static getBleed(fx) {
     return 0;
+  }
+
+  /**
+   * The bleed of a light from maskBlur: the radius, plus the fade of maskAlpha past the frame. At the outer ring, this fade is
+   * half of a mip texel, and a mip texel is one third of the radius. Thus the light is 0 at the mesh edge and shows no hard line there.
+   * @param {number} radius  The blur radius in grid squares at pattern scale 1.
+   * @param {import("../tile-fx-mesh.js").TileFxMesh["fx"]} fx
+   * @returns {number}
+   */
+  static getHaloBleed(radius, fx) {
+    return radius * fx.scale * (7 / 6);
   }
 
   /** @override */
@@ -124,6 +239,13 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
     uniforms.sceneMatrix = mesh.sceneMatrix;
     // The param key is the uniform name. Copy each frame, thus a new shader class gets the params in the next frame.
     for ( const [key, value] of Object.entries(fx.params) ) uniforms[key] = value;
+
+    // The core "mipmap" setting can be off, thus turn the mipmaps on here.
+    // The setter does nothing if the value is the same. Else PIXI makes the mipmaps at the next bind of the texture.
+    if ( this.constructor.usesMaskMipmaps ) {
+      const maskTexture = mesh.texture?.baseTexture;
+      if ( maskTexture && !maskTexture.destroyed ) maskTexture.mipmap = PIXI.MIPMAP_MODES.ON;
+    }
 
     // Check the texture each frame, because the Foundry texture cache can unload it.
     const texture = mesh.backgroundTexture;

@@ -7,18 +7,16 @@ import { getParamDefaults } from "../effects.js";
  * The halo can go past the tile frame, because getBleed makes the mesh larger than the frame.
  */
 export class GlowShader extends TileFxShader {
+  static usesMaskMipmaps = true;
+
   static defaultUniforms = {
     ...super.defaultUniforms,
     ...getParamDefaults("glow")
   };
 
-  /**
-   * The halo radius, plus the fade of maskAlpha past the frame. At the outer ring, this fade is half of a mip texel,
-   * and a mip texel is one third of the radius. Thus the halo is 0 at the mesh edge and shows no hard line there.
-   * @override
-   */
+  /** @override */
   static getBleed(fx) {
-    return fx.params.haloRadius * fx.scale * (7 / 6);
+    return this.getHaloBleed(fx.params.haloRadius, fx);
   }
 
   /** @override */
@@ -27,6 +25,7 @@ export class GlowShader extends TileFxShader {
     ${this.CONSTANTS}
     ${this.PRNG}
     ${this.NOISE}
+    ${this.MASK_BLUR}
 
     // The params of the tile (EFFECTS.glow.params).
     uniform float haloRadius;         // The halo radius in grid squares at pattern scale 1.
@@ -35,49 +34,16 @@ export class GlowShader extends TileFxShader {
     uniform float flickerAmount;
 
     // Tuning values.
-    const float HALO_SIGMA = 0.4;     // The Gaussian width, as a fraction of the halo radius.
     const float HALO_GAIN = 5.0;      // A higher value makes the halo of a thin stroke stronger.
     const float CORE_LIGHT = 0.7;
     const float BASE_LIGHT = 0.3;
     const float FALLOFF = 0.6;        // 1 is a full screen blend. A lower value keeps more light on bright pixels.
 
-    // The mask alpha at a mask UV and mip level. It goes to 0 outside the texture, because the texture clamps at its edge.
-    // The alpha fades over one mip texel at the edge. A sudden stop would show each halo sample as a hard line past the frame.
-    float maskAlpha(vec2 uv, float lod) {
-      vec2 texel = exp2(lod) / vec2(textureSize(sampler, 0));
-      vec2 cover = clamp((min(uv, 1.0 - uv) / texel) + 0.5, 0.0, 1.0);
-      return textureLod(sampler, uv, lod).a * cover.x * cover.y;
-    }
-
-    // One ring of the halo blur. Each ring turns by a different part of its step, to avoid a visible star shape.
-    float haloRing(vec2 radius, float dist, float count, float lod) {
-      float total = 0.0;
-      float offset = dist * (TWOPI / count) * 0.5;
-      for ( float i = 0.0; i < count; i++ ) {
-        float angle = (i * (TWOPI / count)) + offset;
-        total += maskAlpha(vUvs + (vec2(cos(angle), sin(angle)) * radius * dist), lod);
-      }
-      return total / count;
-    }
-
-    // A Gaussian blur of the mask: the center and 3 rings, about one third of the radius apart.
-    // The samples read a mip level with one texel for each sample step. Thus the samples overlap, and the halo
-    // shows no ring bands. GlowShader#_preRender turns on the mipmaps of the mask.
-    // The exponential curve makes the halo of a thin stroke stronger, but a full area does not go above 1.
+    // The blur of the mask with an exponential curve.
+    // The curve makes the halo of a thin stroke stronger, but a full area does not go above 1.
     float halo() {
       vec2 radius = vec2(haloRadius * gridSize * patternScale) / tileSize;
-      vec2 stepTexels = (radius / 3.0) * vec2(textureSize(sampler, 0));
-      float lod = max(log2(max(stepTexels.x, stepTexels.y)), 0.0);
-      float w1 = exp(-(1.0 / 9.0) / (2.0 * HALO_SIGMA * HALO_SIGMA));
-      float w2 = exp(-(4.0 / 9.0) / (2.0 * HALO_SIGMA * HALO_SIGMA));
-      float w3 = exp(-1.0 / (2.0 * HALO_SIGMA * HALO_SIGMA));
-      // The ring weights also count the ring sizes (6, 12, 18 samples), because a larger ring covers more area.
-      float total = maskAlpha(vUvs, lod)
-        + (haloRing(radius, 1.0 / 3.0, 6.0, lod) * w1 * 6.0)
-        + (haloRing(radius, 2.0 / 3.0, 12.0, lod) * w2 * 12.0)
-        + (haloRing(radius, 1.0, 18.0, lod) * w3 * 18.0);
-      float blur = total / (1.0 + (w1 * 6.0) + (w2 * 12.0) + (w3 * 18.0));
-      return 1.0 - exp(-HALO_GAIN * blur);
+      return 1.0 - exp(-HALO_GAIN * maskBlur(radius));
     }
 
     vec4 _main() {
@@ -103,14 +69,5 @@ export class GlowShader extends TileFxShader {
       return vec4(light * tintAlpha.a, 0.0);
     }
   `;
-  }
-
-  /** @override */
-  _preRender(mesh, renderer) {
-    super._preRender(mesh, renderer);
-    // The halo blur reads the mip levels of the mask. The core "mipmap" setting can be off, thus turn them on here.
-    // The setter does nothing if the value is the same. Else PIXI makes the mipmaps at the next bind of the texture.
-    const baseTexture = mesh.texture?.baseTexture;
-    if ( baseTexture && !baseTexture.destroyed ) baseTexture.mipmap = PIXI.MIPMAP_MODES.ON;
   }
 }
