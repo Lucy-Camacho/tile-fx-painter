@@ -5,12 +5,14 @@ import { TileFxMesh } from "./tile-fx-mesh.js";
 import { GlowShader } from "./shaders/glow.js";
 import { MetallicShader } from "./shaders/metallic.js";
 import { LiquidShader } from "./shaders/liquid.js";
+import { LavaShader } from "./shaders/lava.js";
 
 /** The shader class of each effect. */
 const SHADERS = {
   glow: GlowShader,
   metallic: MetallicShader,
-  liquid: LiquidShader
+  liquid: LiquidShader,
+  lava: LavaShader
 };
 
 const meshes = new Map();

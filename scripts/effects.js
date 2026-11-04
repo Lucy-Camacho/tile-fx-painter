@@ -53,6 +53,32 @@ export const EFFECTS = {
       // The brightness of the wet highlights.
       specularAmount: { default: 0.7, min: 0, max: 1.5, step: 0.05 }
     }
+  },
+  lava: {
+    label: "TILE_FX_PAINTER.Config.Shader.Choices.Lava",
+    defaultColor: "#ff6a05",
+    params: {
+      // The part of the surface that is molten. A low value gives mostly crust.
+      moltenAmount: { default: 0.65, min: 0, max: 1, step: 0.05 },
+      // The position on the color ramp of the molten rock. A higher value gives more yellow and white.
+      heatLevel: { default: 1, min: 0, max: 2, step: 0.05 },
+      // The quantity of map brightness in the crust. 0 gives a black crust.
+      crustBrightness: { default: 0.15, min: 0, max: 1, step: 0.05 },
+      // The force of the domain warp. 0 gives soft areas with no swirls and no streaks.
+      warpAmount: { default: 1.5, min: 0, max: 4, step: 0.05 },
+      // The quantity of small hot flecks and grain. 0 gives smooth areas.
+      detailAmount: { default: 1, min: 0, max: 2, step: 0.05 },
+      // The height of the rough surface in the light. 0 gives a flat surface.
+      reliefAmount: { default: 1, min: 0, max: 2, step: 0.05 },
+      // The change of the heat with time. 0 removes the pulse.
+      pulseAmount: { default: 0.5, min: 0, max: 1, step: 0.05 },
+      // The flow direction in degrees, in the tile frame axes.
+      flowAngle: { default: 0, min: 0, max: 360, step: 5 },
+      // The flow speed. 0 keeps the pattern at its position.
+      flowAmount: { default: 0.05, min: 0, max: 1, step: 0.05 },
+      // The size of the light past the mask, in grid squares at pattern scale 1. 0 removes the light.
+      heatRadius: { default: 0.4, min: 0, max: 2, step: 0.05 }
+    }
   }
 };
 
