@@ -10,13 +10,13 @@ The module was made for Foundry VTT. It supports V13 and V14.
 
 The demo map with no effects. Demo map was created using Dungeondraft.
 
-![The demo map with no effects](docs/No%20Shader%20Demo.png)
+<img src="docs/no-shader-demo.png" alt="The demo map with no effects" width="500" height="500">
 
 ### After
 
 The same map with the effects.
 
-![The demo map with the effects](docs/Shader%20Demo.gif)
+![The demo map with the effects](docs/shader-demo.gif)
 
 ## Effects
 
