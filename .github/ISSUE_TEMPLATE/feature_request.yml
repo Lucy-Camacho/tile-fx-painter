@@ -1,0 +1,60 @@
+name: Feature Request
+description: Ask for a new feature or a change in Tile FX Painter.
+title: "[Feature]: "
+labels: ["feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Complete all the fields that have a red star. The form does not send an issue if one of these fields is empty.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks Before You Send
+      options:
+        - label: I searched the open and closed issues. No issue tells about this feature.
+          required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area of the Feature
+      description: Select the part of the module that the feature changes.
+      options:
+        - New effect
+        - Change to an effect
+        - FX Painter tab in the tile configuration window
+        - Mask Editor
+        - Module settings
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Explain the problem that the feature solves, or what you cannot do now.
+    validations:
+      required: true
+
+  - type: textarea
+    id: feature
+    attributes:
+      label: Feature
+      description: Explain what the feature must do.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Other Solutions
+      description: Explain other solutions that you tried or examined.
+
+  - type: textarea
+    id: media
+    attributes:
+      label: Examples
+      description: Attach images, videos, or links that show the feature.
