@@ -8,7 +8,7 @@ The module was made for Foundry VTT. It supports V13 and V14.
 
 ### Before
 
-The demo map with no effects.
+The demo map with no effects. Demo map was created using Dungeondraft.
 
 ![The demo map with no effects](docs/No%20Shader%20Demo.png)
 
@@ -30,9 +30,21 @@ The same map with the effects.
 | Frost | A sheet of ice with cracks, sparkles, and fog along the mask border. |
 | Astral Void | A hole into space, with stars and color clouds. It does not use the map color. |
 
+## Tile Settings
+
+The tile configuration window has an FX Painter tab. Use this tab to enable an effect on the tile and to change it.
+
+![The FX Painter tab with the Lava effect](docs/tile-config-fx-tab-lava.jpg)
+
+Expand a group to show its settings. The text below each setting explains what it does.
+
+![The Lava Settings section with the Molten Rock and Crust groups expanded](docs/lava-settings-expanded-1.jpg)
+
 ## Mask Editor
 
 The Mask Editor shows the area of the background image under the tile.
+
+![The Mask Editor with a painted mask on a tile](docs/mask-editor.jpg)
 
 The editor has these tools:
 
@@ -46,6 +58,12 @@ The editor has these tools:
 The editor can also invert the mask, clear the mask, undo a change, and redo a change.
 
 The module saves each mask as a PNG file in the User Data location. The default directory is `modules/tile-fx-painter/storage/masks`. You can change the directory in the world setting of the module.
+
+![The Mask Directory setting in the Game Settings window](docs/module-settings.jpg)
+
+## Performance
+
+The module was tested with more than 70 tiles, all with shader effects. The test showed no noticeable performance decrease.
 
 ## Limits
 
@@ -69,9 +87,9 @@ Or it can be downloaded from Foundry directly.
 
 This module was coded the help of AI for the following:
 
-- To write the code comments.
-- To assist with the shader code.
-- To understand the Foundry API and how to attach code to its hooks.
+- Write the code comments.
+- Assist with the shader code.
+- Understand the Foundry API and how to attach code to its hooks.
 
 ## License
 
