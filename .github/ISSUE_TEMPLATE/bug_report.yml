@@ -1,0 +1,115 @@
+name: Bug Report
+description: Report a problem in Tile FX Painter.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Complete all the fields that have a red star. The form does not send an issue if one of these fields is empty.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks Before You Send
+      options:
+        - label: I searched the open and closed issues. No issue tells about this bug.
+          required: true
+        - label: I disabled all other modules, and the bug still occurs.
+          required: true
+
+  - type: input
+    id: module-version
+    attributes:
+      label: Module Version
+      description: Can be found in the Manage Modules window.
+      placeholder: 0.1.0
+    validations:
+      required: true
+
+  - type: input
+    id: foundry-version
+    attributes:
+      label: Foundry VTT Version
+      description: Can be found in the Game Settings tab.
+      placeholder: "14.350"
+    validations:
+      required: true
+
+  - type: input
+    id: client
+    attributes:
+      label: Browser or Client
+      description: Give the name and the version.
+      placeholder: Foundry desktop client, Chrome 130, Firefox 132
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area of the Bug
+      description: Select the part of the module that has the bug.
+      options:
+        - Effect on the canvas
+        - FX Painter tab in the tile configuration window
+        - Mask Editor
+        - Module settings
+        - Installation or module start
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: effects
+    attributes:
+      label: Effects
+      description: Select all the effects that have the bug.
+      multiple: true
+      options:
+        - Glow
+        - Metallic
+        - Liquid
+        - Lava
+        - Water
+        - Frost
+        - Astral Void
+        - All effects
+        - The bug is not related to an effect
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-result
+    attributes:
+      label: What Occurred
+      description: Explain what the module did.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-result
+    attributes:
+      label: Expected Result
+      description: Explain what the module must do.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps That Cause the Bug
+      description: Give each step in the sequence. Another person must be able to do the same steps and see the bug.
+      placeholder: |
+        1. Create a tile on a scene.
+        2. Open the FX Painter tab.
+        3. Enable the Lava effect.
+        4. See the error.
+    validations:
+      required: true
+
+  - type: textarea
+    id: media
+    attributes:
+      label: Screenshots or Videos
+      description: Attach images or videos that show the bug.
