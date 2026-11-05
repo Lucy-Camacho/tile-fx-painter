@@ -2,7 +2,7 @@
   "id": "tile-fx-painter",
   "title": "Tile FX Painter",
   "description": "Add shader effects onto tiles in Foundry VTT.",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "authors": [
     {
       "name": "Lazy_Pixel"
