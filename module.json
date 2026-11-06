@@ -22,7 +22,7 @@
       "path": "lang/en.json"
     }
   ],
-  "url": "",
-  "manifest": "",
-  "download": ""
+  "url": "https://github.com/Lucy-Camacho/tile-fx-painter/",
+  "manifest": "https://github.com/Lucy-Camacho/tile-fx-painter/releases/download/0.1.0/module.json",
+  "download": "https://github.com/Lucy-Camacho/tile-fx-painter/releases/download/0.1.0/module.zip"
 }
