@@ -87,7 +87,7 @@ export class TileFxMesh extends foundry.canvas.primary.PrimarySpriteMesh {
   }
 
   /**
-   * Use the same math as captureBackground:
+   * Use the same math as drawLayer in background-capture.js:
    * scene point = frame center + rotate(rotation) × ((u − 0.5) × width, (v − 0.5) × height).
    * The background image is a sprite with the transform of getBackgroundSource, as the Foundry background mesh.
    * @param {ReturnType<import("./compat.js").getTileFrame>} frame

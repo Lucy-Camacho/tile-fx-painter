@@ -1,7 +1,7 @@
 import { MODULE_ID } from "./main.js";
-import { captureBackground, loadImage } from "./background-capture.js";
+import { captureTile, loadImage } from "./background-capture.js";
 import { MaskCanvas } from "./mask-canvas.js";
-import { changesTileFrame, getBackgroundSource } from "./compat.js";
+import { changesTileFrame, getBackgroundSource, getSavedTileImageSource } from "./compat.js";
 
 const { ApplicationV2, DialogV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -137,11 +137,19 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
   #captureId = 0;
 
   /**
-   * The background source of the last capture, as JSON. A scene or level update compares it, and captures again only
-   * if the background under the tile changed.
+   * The image sources of the last capture, as JSON. An update compares it, and captures again only if an image changed.
    * @type {string}
    */
-  #backgroundKey = "";
+  #captureKey = "";
+
+  /**
+   * The layers of the last capture. A toggle change composes them again, and does not load the images again.
+   * @type {import("./background-capture.js").TileCapture|null}
+   */
+  #layers = null;
+
+  /** Not kept between windows, as "Show Mask". */
+  #includeBackground = true;
 
   /** The saved mask of the tile is in the mask. The editor loads it only one time, at the first capture. */
   #maskLoaded = false;
@@ -234,6 +242,9 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
       showPolygonHint: this.#toolHasOptions(this.mask.tool, "polygon"),
       shapeMode: this.mask.shapeMode,
       showMask: this.mask.showMask,
+      hasTileImage: !!this.#layers?.image,
+      hasBackground: !!this.#layers?.background,
+      includeBackground: this.#includeBackground,
       canUndo: this.mask.canUndo,
       canRedo: this.mask.canRedo,
       canSave: this.canSave
@@ -285,6 +296,9 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     el.querySelector("[name=showMask]").addEventListener("change", (event) => {
       this.mask.setShowMask(event.currentTarget.checked);
     });
+    el.querySelector("[name=includeBackground]")?.addEventListener("change", (event) => {
+      this.setIncludeBackground(event.currentTarget.checked);
+    });
 
     // Show the mask of an earlier capture at once. The new capture replaces it when it is ready.
     if (this.mask.base) this.mask.attach(this.element.querySelector(".tile-fx-painter-editor-view"));
@@ -330,25 +344,25 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /**
-   * Capture the background under the tile again and show it in the view area.
+   * Capture the background and the tile image again, and show them in the view area.
    * The capture uses the saved tile data.
    * @returns {Promise<void>}
    */
   async recapture() {
     const captureId = ++this.#captureId;
-    this.#backgroundKey = JSON.stringify(getBackgroundSource(this.tile));
+    this.#captureKey = this.#getCaptureKey();
     // Load the saved mask at the same time as the capture. The mask gets its size from the capture, thus the load waits for it.
     const savedMask = this.#maskLoaded ? null : this.#loadSavedMask();
 
     let capture = null;
     let message = "TILE_FX_PAINTER.Editor.NoBackground";
     try {
-      capture = await captureBackground(this.tile);
+      capture = await captureTile(this.tile);
     } catch (err) {
       console.error(err);
       message = "TILE_FX_PAINTER.Editor.CaptureFailed";
-      // Thus the next scene or level update tries the capture again. A newer capture keeps its own key.
-      if (captureId === this.#captureId) this.#backgroundKey = "";
+      // Thus the next update tries the capture again. A newer capture keeps its own key.
+      if (captureId === this.#captureId) this.#captureKey = "";
     }
     const savedImage = await savedMask;
 
@@ -356,8 +370,11 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     const view = this.element?.querySelector(".tile-fx-painter-editor-view");
     if ((captureId !== this.#captureId) || !view) return;
 
+    this.#layers = capture;
+    // The first render did not know the capture result. A new render replaces the view element, thus change the checkbox directly.
+    this.#updateCaptureToggle();
     if (capture) {
-      this.mask.setBase(capture);
+      this.#composeBase();
       if (savedMask) {
         this.#maskLoaded = true;
         if (savedImage) this.mask.load(savedImage);
@@ -373,10 +390,54 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /**
-   * Capture again if the background image under the tile, or its placement, changed after the last capture.
+   * Capture again if the background, the tile image, or their placement changed after the last capture.
    */
-  refreshBackground() {
-    if (JSON.stringify(getBackgroundSource(this.tile)) !== this.#backgroundKey) this.recapture();
+  refreshCapture() {
+    if (this.#getCaptureKey() !== this.#captureKey) this.recapture();
+  }
+
+  /**
+   * Show or hide the scene background under the tile image. The images do not load again.
+   * @param {boolean} include
+   */
+  setIncludeBackground(include) {
+    this.#includeBackground = !!include;
+    this.#updateCaptureToggle();
+    if (this.#layers) this.#composeBase();
+  }
+
+  /** @returns {string} */
+  #getCaptureKey() {
+    return JSON.stringify({ background: getBackgroundSource(this.tile), image: getSavedTileImageSource(this.tile) });
+  }
+
+  /**
+   * Make the base of the mask from the capture layers and the mode.
+   * The two layers have the same size, thus the mask and the undo history stay.
+   */
+  #composeBase() {
+    const { background, image, width, height } = this.#layers;
+    // With no background, the toggle has no effect. With no image, the background is the only layer.
+    if (!image || !background) return this.mask.setBase(image ?? background);
+    if (!this.#includeBackground) return this.mask.setBase(image);
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(background, 0, 0);
+    ctx.drawImage(image, 0, 0);
+    this.mask.setBase(canvas);
+  }
+
+  /** Show the "Include Background" checkbox only for a tile image. Disable it if the scene has no background. */
+  #updateCaptureToggle() {
+    const input = this.element?.querySelector("[name=includeBackground]");
+    if (!input) return;
+    input.checked = this.#includeBackground;
+    input.disabled = !this.#layers?.background;
+    const label = input.closest("label") ?? input;
+    label.hidden = !this.#layers?.image;
   }
 
   /**
@@ -567,12 +628,12 @@ function getEditor(tile) {
 }
 
 // The capture uses the saved tile data. Capture again when the area under the tile changes.
-// A change of the tile levels (v14) can change the background image.
+// A change of the tile levels (v14) can change the background image. A texture change can change the tile image.
 Hooks.on("updateTile", (tile, changes) => {
   const editor = getEditor(tile);
   if (!editor) return;
   if (changesTileFrame(changes)) editor.recapture();
-  else editor.refreshBackground();
+  else editor.refreshCapture();
 });
 
 /**
@@ -580,7 +641,7 @@ Hooks.on("updateTile", (tile, changes) => {
  * @param {Scene|null} scene
  */
 function refreshSceneEditors(scene) {
-  scene?.tiles.forEach((tile) => getEditor(tile)?.refreshBackground());
+  scene?.tiles.forEach((tile) => getEditor(tile)?.refreshCapture());
 }
 
 // A scene update can change the v13 background or the scene rectangle. A level update can change the v14 background.
