@@ -438,6 +438,9 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     input.disabled = !this.#layers?.background;
     const label = input.closest("label") ?? input;
     label.hidden = !this.#layers?.image;
+    label.dataset.tooltip = input.disabled
+      ? "TILE_FX_PAINTER.Editor.NoBackgroundForTile"
+      : "TILE_FX_PAINTER.Editor.IncludeBackgroundHint";
   }
 
   /**

@@ -80,6 +80,11 @@
   gap: 0.25rem;
 }
 
+/* The "display: flex" above overrides the "hidden" attribute. */
+.tile-fx-painter-editor-toolbar label[hidden] {
+  display: none;
+}
+
 .tile-fx-painter-editor-toolbar input[type="range"],
 .tile-fx-painter-editor-tools input[type="range"] {
   width: 6rem;
