@@ -1,6 +1,17 @@
 {
   "TILE_FX_PAINTER": {
     "Title": "Tile FX Painter",
+    "Settings": {
+      "MaskQuality": {
+        "Name": "Mask Quality",
+        "Hint": "The maximum resolution of a saved mask, relative to the scene pixels. A lower quality makes the scene data smaller, and the mask edges become softer. The editor paints at the full resolution. The setting applies at the next save of a mask.",
+        "Choices": {
+          "High": "High (1 mask pixel for each scene pixel)",
+          "Medium": "Medium (1 mask pixel for each 2 scene pixels)",
+          "Low": "Low (1 mask pixel for each 4 scene pixels)"
+        }
+      }
+    },
     "Tab": {
       "Label": "FX Painter"
     },

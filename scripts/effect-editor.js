@@ -1,9 +1,10 @@
-import { MODULE_ID } from "./main.js";
+import { MODULE_ID, getMaskQualityScale } from "./main.js";
 import { captureTile, loadImage } from "./background-capture.js";
 import { MaskCanvas } from "./mask-canvas.js";
-import { changesTileFrame, getBackgroundSource, getSavedTileImageSource } from "./compat.js";
+import { changesTileFrame, getBackgroundSource, getSavedTileFrame, getSavedTileImageSource } from "./compat.js";
 import {
-  blobToDataUrl, encodeMaskPng, getEmbeddedMaskSize, getImageMaskValues, getMaskLabel, isEmbeddedMask
+  blobToDataUrl, encodeMaskPng, getEmbeddedMaskSize, getImageMaskValues, getMaskLabel, getMaskSaveSize, isEmbeddedMask,
+  scaleMaskValues
 } from "./mask-data.js";
 
 const { ApplicationV2, DialogV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -18,6 +19,22 @@ const MASK_SIZE_WARNING = 1024 * 1024;
 function formatKilobytes(bytes) {
   const kb = bytes / 1024;
   return kb < 10 ? kb.toFixed(1) : String(Math.round(kb));
+}
+
+/**
+ * Encode mask values as a data URL at the size that the "maskQuality" setting allows for the tile.
+ * @param {TileDocument} tile
+ * @param {Uint8Array} values
+ * @param {number} width
+ * @param {number} height
+ * @returns {Promise<{mask: string, size: number}>}  The data URL and the PNG size in bytes.
+ */
+async function encodeTileMask(tile, values, width, height) {
+  const frame = getSavedTileFrame(tile);
+  const size = getMaskSaveSize(width, height, frame.width, frame.height, getMaskQualityScale());
+  const scaled = scaleMaskValues(values, width, height, size.width, size.height);
+  const blob = await encodeMaskPng(scaled, size.width, size.height);
+  return { mask: await blobToDataUrl(blob), size: blob.size };
 }
 
 /**
@@ -402,17 +419,17 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
       this.mask.endStroke();
       // getValues copies the pixels. Changes during the encode stay unsaved.
       const version = this.mask.version;
+      // The editor keeps the full resolution for the paint tools. Only the saved copy is smaller.
       const { width, height } = this.mask.mask;
-      const blob = await encodeMaskPng(this.mask.getValues(), width, height);
-      const mask = await blobToDataUrl(blob);
+      const { mask, size } = await encodeTileMask(this.tile, this.mask.getValues(), width, height);
 
       // "render: false" stops a new render of the open tile sheets on all clients. A new render fills the form from the saved
       // data and removes the changes that the user did not submit. The sheets do not show the "mask" flag, thus they stay correct.
       await this.tile.update({ [`flags.${MODULE_ID}.mask`]: mask }, { render: false });
       this.mask.markSaved(version);
       ui.notifications.info("TILE_FX_PAINTER.Editor.Saved", { localize: true });
-      if (blob.size > MASK_SIZE_WARNING) {
-        ui.notifications.warn(game.i18n.format("TILE_FX_PAINTER.Editor.MaskSizeWarning", { size: formatKilobytes(blob.size) }));
+      if (size > MASK_SIZE_WARNING) {
+        ui.notifications.warn(game.i18n.format("TILE_FX_PAINTER.Editor.MaskSizeWarning", { size: formatKilobytes(size) }));
       }
       return true;
     } catch (err) {
@@ -636,8 +653,8 @@ async function copyPastedMask(tile) {
   if (!path || isEmbeddedMask(path)) return;
   try {
     const image = await loadImage(path);
-    const blob = await encodeMaskPng(getImageMaskValues(image), image.naturalWidth, image.naturalHeight);
-    const mask = await blobToDataUrl(blob);
+    // A 0.1.0 mask file has the full image resolution, thus the quality limit also applies here.
+    const { mask } = await encodeTileMask(tile, getImageMaskValues(image), image.naturalWidth, image.naturalHeight);
     // An undo can delete the tile during the encode.
     if (!EffectEditor.isCreated(tile)) return;
     // "isUndo" keeps this update out of the canvas history. Else the first Ctrl+Z after a paste restores the shared path,

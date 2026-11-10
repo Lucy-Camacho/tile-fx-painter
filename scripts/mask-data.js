@@ -155,6 +155,58 @@ export function getImageMaskValues(image) {
 }
 
 /**
+ * Get the saved size of a mask. The size does not go above the source size, because a larger mask adds no detail.
+ * @param {number} width  The mask size in mask pixels.
+ * @param {number} height
+ * @param {number} frameWidth  The tile frame size in scene pixels.
+ * @param {number} frameHeight
+ * @param {number} scale  The maximum mask pixels for each scene pixel.
+ * @returns {{width: number, height: number}}
+ */
+export function getMaskSaveSize(width, height, frameWidth, frameHeight, scale) {
+  // One factor for the two axes keeps the pixels square.
+  const factor = Math.min(1, (Math.abs(frameWidth) * scale) / width, (Math.abs(frameHeight) * scale) / height);
+  if (!(factor > 0)) return { width, height };
+  return { width: Math.max(1, Math.round(width * factor)), height: Math.max(1, Math.round(height * factor)) };
+}
+
+/**
+ * Scale the mask values to a different size.
+ * @param {Uint8Array} values  The mask values, row by row.
+ * @param {number} width
+ * @param {number} height
+ * @param {number} newWidth
+ * @param {number} newHeight
+ * @returns {Uint8Array}
+ */
+export function scaleMaskValues(values, width, height, newWidth, newHeight) {
+  if ((newWidth === width) && (newHeight === height)) return values;
+  // Opaque gray, not white with alpha: the canvas premultiplies alpha, which loses precision at low values.
+  const source = document.createElement("canvas");
+  source.width = width;
+  source.height = height;
+  const sourceData = new ImageData(width, height);
+  const px = sourceData.data;
+  for (let i = 0; i < values.length; i++) {
+    px[i * 4] = px[i * 4 + 1] = px[i * 4 + 2] = values[i];
+    px[i * 4 + 3] = 255;
+  }
+  source.getContext("2d").putImageData(sourceData, 0, 0);
+
+  const target = document.createElement("canvas");
+  target.width = newWidth;
+  target.height = newHeight;
+  const ctx = target.getContext("2d", { willReadFrequently: true });
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(source, 0, 0, newWidth, newHeight);
+  const out = ctx.getImageData(0, 0, newWidth, newHeight).data;
+  const scaled = new Uint8Array(newWidth * newHeight);
+  for (let i = 0; i < scaled.length; i++) scaled[i] = out[i * 4];
+  return scaled;
+}
+
+/**
  * @param {Blob} blob
  * @returns {Promise<string>}  A "data:" URL.
  */
