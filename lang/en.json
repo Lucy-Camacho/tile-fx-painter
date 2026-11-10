@@ -336,6 +336,7 @@
       "SaveFailed": "Cannot save the mask. Look at the console for more data.",
       "InvalidDirectory": "Cannot save the mask. The Mask Directory setting must be a directory in the User Data. Change the setting in the module settings.",
       "LoadFailed": "Cannot load the saved mask \"{path}\". The editor starts with an empty mask.",
+      "EmbeddedMaskLabel": "embedded mask ({size} KB)",
       "CopyFailed": "Cannot copy the mask of the pasted tile. The new tile uses the mask file of the old tile, thus a save on the old tile also changes the new tile. Look at the console for more data.",
       "CopyNoPermission": "You do not have the permission to upload files. The pasted tile uses the mask file of the old tile, thus a save on the old tile also changes the new tile.",
       "UnsavedTitle": "Unsaved Mask",
