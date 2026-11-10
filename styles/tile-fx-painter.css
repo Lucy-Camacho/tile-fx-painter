@@ -80,6 +80,11 @@
   gap: 0.25rem;
 }
 
+/* The "display: flex" above overrides the "hidden" attribute. */
+.tile-fx-painter-editor-toolbar label[hidden] {
+  display: none;
+}
+
 .tile-fx-painter-editor-toolbar input[type="range"],
 .tile-fx-painter-editor-tools input[type="range"] {
   width: 6rem;
@@ -110,6 +115,15 @@
 
 .tile-fx-painter-editor-spacer {
   flex: 1;
+}
+
+.tile-fx-painter-editor-size {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.tile-fx-painter-editor-size.warning {
+  color: var(--color-level-warning, #ee9b3a);
 }
 
 /* The view must not take its size from the display canvas. The canvas takes its size from the view. */

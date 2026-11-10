@@ -144,6 +144,47 @@ export function getBackgroundSource(tileDocument) {
 }
 
 /**
+ * The value has the same shape as getBackgroundSource, thus one draw code and one matrix code place the two images.
+ * - v13: The image anchor is at the frame center, and moves only the image.
+ * - v14: The image anchor is at the shape point, and also moves the frame.
+ * The function uses the live data, as getTileFrame does, thus it includes the unsubmitted changes of the v13 sheet.
+ * @param {TileDocument|object} tileDocument  The document, or its source data.
+ * @returns {{src: string, x: number, y: number, width: number, height: number, anchorX: number, anchorY: number,
+ *   rotation: number, fit: string, scaleX: number, scaleY: number, tint: number[]}|null}
+ *   The tint is RGB from 0 to 1. The src can be a video, thus the caller must test it.
+ */
+export function getTileImageSource(tileDocument) {
+  const { texture } = tileDocument;
+  const src = texture?.src;
+  if (!src) return null;
+
+  const { fit, scaleX, scaleY } = texture;
+  const color = foundry.utils.Color.from(texture.tint);
+  // The v13 source keeps the tint as a string, and a null tint is white.
+  const tint = color.valid ? color.rgb : [1, 1, 1];
+
+  if (isV14()) {
+    const { x, y, width, height, anchorX, anchorY, rotation } = tileDocument.shape;
+    return { src, x, y, width, height, anchorX, anchorY, rotation, fit, scaleX, scaleY, tint };
+  }
+
+  const { x, y, width, height, rotation } = tileDocument;
+  const { anchorX, anchorY } = texture;
+  return {
+    src, x: x + (width / 2), y: y + (height / 2), width, height, anchorX, anchorY, rotation, fit, scaleX, scaleY, tint
+  };
+}
+
+/**
+ * The value does not include the unsubmitted changes of the tile sheet. See getSavedTileFrame.
+ * @param {TileDocument} tileDocument
+ * @returns {ReturnType<typeof getTileImageSource>}
+ */
+export function getSavedTileImageSource(tileDocument) {
+  return getTileImageSource(isV14() ? tileDocument : tileDocument._source);
+}
+
+/**
  * Get the lowest v14 level of a tile: the level with the lowest bottom elevation. All users see the same level for
  * a tile, thus the effect does not change with the viewed level.
  * An empty tile "levels" set means all levels of the scene (CanvasDocument#includedInLevel).

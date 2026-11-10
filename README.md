@@ -57,9 +57,7 @@ The editor has these tools:
 
 The editor can also invert the mask, clear the mask, undo a change, and redo a change.
 
-The module saves each mask as a PNG file in the User Data location. The default directory is `modules/tile-fx-painter/storage/masks`. You can change the directory in the world setting of the module.
-
-![The Mask Directory setting in the Game Settings window](docs/module-settings.jpg)
+The module saves each mask as a small grayscale PNG in the tile data. Thus a scene export or a compendium keeps the masks. The module continues to show the mask files of version 0.1.0. The next save of the tile embeds the mask.
 
 ## Performance
 
@@ -67,7 +65,7 @@ The module was tested with more than 70 tiles, all with shader effects. The test
 
 ## Limits
 
-- Only users with the `FILES_UPLOAD` permission can open the Mask Editor.
+- Only users with the permission to update the tile can open the Mask Editor.
 - You must create a tile before you can open the Mask Editor for it.
 - The effects use only the background image under the tile. They do not use other tiles or tokens.
 - Video backgrounds are not supported.

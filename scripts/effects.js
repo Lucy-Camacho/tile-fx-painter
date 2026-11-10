@@ -28,9 +28,9 @@ export const EFFECTS = {
       // 0 gives rough metal: wide and dim reflections, with deep brush lines. 1 gives polished metal: narrow and bright reflections.
       smoothness: { default: 0.5, min: 0, max: 1, step: 0.05, group: "surface" },
       // A multiplier on the depth of the brush lines. 0 removes them.
-      grainAmount: { default: 1, min: 0, max: 2, step: 0.05, group: "surface" },
+      grainAmount: { default: 0.5, min: 0, max: 2, step: 0.05, group: "surface" },
       // The tone of the darkest map areas. 1 gives a flat metal with no map tone.
-      shadowTone: { default: 0.7, min: 0, max: 1, step: 0.05, group: "surface" },
+      shadowTone: { default: 0.1, min: 0, max: 1, step: 0.05, group: "surface" },
       // A multiplier on the light of the reflection bands. 0 removes the bands.
       shineBand: { default: 1, min: 0, max: 2, step: 0.05, group: "reflections" },
       // A multiplier on the movement of the reflections with the camera. 0 keeps them still.

@@ -184,7 +184,7 @@ export class MaskCanvas {
     this.#putPixels();
     this.#undo.length = 0;
     this.#redo.length = 0;
-    // A loaded file is the saved state, so the mask is not dirty.
+    // A loaded mask is the saved state, so the mask is not dirty.
     this.#version = this.#savedVersion = ++this.#lastVersion;
     this.onHistoryChange?.();
   }
@@ -192,6 +192,14 @@ export class MaskCanvas {
   endStroke() {
     this.#flushStroke();
     this.#stroke = null;
+  }
+
+  /** @returns {Uint8Array}  The mask value (alpha) of each pixel, row by row. */
+  getValues() {
+    const px = this.#pixels.data;
+    const values = new Uint8Array(px.length / 4);
+    for (let i = 0; i < values.length; i++) values[i] = px[i * 4 + 3];
+    return values;
   }
 
   attach(view) {
@@ -856,10 +864,13 @@ export class MaskCanvas {
     canvas.height = height;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     ctx.drawImage(image, 0, 0, width, height);
-    // Only the alpha is data. The canvas gives premultiplied color, so set the color to white.
+    // min(R, A) reads an opaque grayscale mask and a white mask with alpha. Same rule as maskValue() in the shader.
     const pixels = ctx.getImageData(0, 0, width, height);
     const px = pixels.data;
-    for (let i = 0; i < px.length; i += 4) px[i] = px[i + 1] = px[i + 2] = 255;
+    for (let i = 0; i < px.length; i += 4) {
+      px[i + 3] = Math.min(px[i], px[i + 3]);
+      px[i] = px[i + 1] = px[i + 2] = 255;
+    }
     return pixels;
   }
 

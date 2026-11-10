@@ -12,7 +12,7 @@
     "minimum": "13",
     "verified": "14"
   },
-  "esmodules": ["scripts/main.js", "scripts/compat.js", "scripts/tile-config-tab.js", "scripts/effects.js","scripts/effect-editor.js", "scripts/background-capture.js", "scripts/mask-canvas.js", "scripts/tile-fx.js", "scripts/tile-fx-mesh.js", "scripts/shaders/tile-fx-shader.js", "scripts/shaders/glow.js", "scripts/shaders/metallic.js", "scripts/shaders/liquid.js", "scripts/shaders/lava.js", "scripts/shaders/water.js", "scripts/shaders/frost.js", "scripts/shaders/astral-void.js"],
+  "esmodules": ["scripts/main.js", "scripts/compat.js", "scripts/tile-config-tab.js", "scripts/effects.js","scripts/effect-editor.js", "scripts/background-capture.js", "scripts/mask-canvas.js", "scripts/mask-data.js","scripts/tile-fx.js", "scripts/tile-fx-mesh.js", "scripts/shaders/tile-fx-shader.js", "scripts/shaders/glow.js", "scripts/shaders/metallic.js", "scripts/shaders/liquid.js", "scripts/shaders/lava.js", "scripts/shaders/water.js", "scripts/shaders/frost.js", "scripts/shaders/astral-void.js"],
   "persistentStorage": true,
   "styles":["styles/tile-fx-painter.css"],
   "languages": [
@@ -22,7 +22,7 @@
       "path": "lang/en.json"
     }
   ],
-  "url": "",
-  "manifest": "",
-  "download": ""
+  "url": "https://github.com/Lucy-Camacho/tile-fx-painter/",
+  "manifest": "https://github.com/Lucy-Camacho/tile-fx-painter/releases/download/0.2.0/module.json",
+  "download": "https://github.com/Lucy-Camacho/tile-fx-painter/releases/download/0.2.0/module.zip"
 }

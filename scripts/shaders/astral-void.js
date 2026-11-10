@@ -196,7 +196,7 @@ export class AstralVoidShader extends TileFxShader {
         if ( hasRim ) {
           // The blur divided by the local mask alpha is 0.5 at a hard edge and near 1 on a flat or a soft mask.
           // Thus a low mask alpha and a soft edge do not make a light in all of their area.
-          float ratio = clamp(maskBlurCoarse(rimUv) / texture(sampler, vUvs).a, 0.0, 1.0);
+          float ratio = clamp(maskBlurCoarse(rimUv) / maskValue(texture(sampler, vUvs)), 0.0, 1.0);
           float inner = pow(1.0 - smoothstep(0.5, 1.0, ratio), RIM_SHARP);
           color += mix(effectColor, sqrt(effectColor), inner) * inner * rim * RIM_INNER;
         }

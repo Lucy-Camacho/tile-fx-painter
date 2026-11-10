@@ -94,8 +94,8 @@ Hooks.on("renderTileConfig", async (app, element) => {
     scaleId: `${idPrefix}-scale`,
     scale: settings.scale,
     effectParams: getEffectParamGroups(tileData, settings.effect, idPrefix, openGroups),
-    // The editor saves the mask as an uploaded file. Users who cannot upload cannot use it.
-    canOpenEditor: game.user.can("FILES_UPLOAD"),
+    // The editor saves the mask in the tile flags, thus it needs no upload permission.
+    canOpenEditor: app.document.canUserModify(game.user, "update"),
     // "Create Tile" closes the sheet, thus the button stays disabled until the user opens the sheet of the created tile.
     tileCreated: EffectEditor.isCreated(app.document)
   });

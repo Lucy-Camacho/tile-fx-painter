@@ -79,11 +79,17 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
       return color.a > 0.0 ? color.rgb / color.a : vec3(0.0);
     }
 
-    // The mask alpha times the intensity. It can be more than 1.
+    // An embedded mask is opaque grayscale with the value in R. A 0.1.0 file mask is white with the value in A.
+    // min(R, A) is correct for the two formats, premultiplied or not.
+    float maskValue(vec4 c) {
+      return min(c.r, c.a);
+    }
+
+    // The mask value times the intensity. It can be more than 1.
     // It is 0 outside the tile frame, because the texture clamps at its edge and would show streaks in the bleed area.
     float strength() {
       vec2 inside = step(vec2(0.0), vUvs) * step(vUvs, vec2(1.0));
-      return texture(sampler, vUvs).a * inside.x * inside.y * intensity;
+      return maskValue(texture(sampler, vUvs)) * inside.x * inside.y * intensity;
     }
 
     // One unit is one grid square at pattern scale 1. Thus a pattern has the same size on all tiles.
@@ -162,7 +168,7 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
     float maskAlpha(vec2 uv, float lod) {
       vec2 texel = exp2(lod) / vec2(textureSize(sampler, 0));
       vec2 cover = clamp((min(uv, 1.0 - uv) / texel) + 0.5, 0.0, 1.0);
-      return textureLod(sampler, uv, lod).a * cover.x * cover.y;
+      return maskValue(textureLod(sampler, uv, lod)) * cover.x * cover.y;
     }
 
     // The mip level with one texel for each sample step. Thus the samples overlap, and the blur shows no ring bands.

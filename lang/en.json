@@ -1,6 +1,17 @@
 {
   "TILE_FX_PAINTER": {
     "Title": "Tile FX Painter",
+    "Settings": {
+      "MaskQuality": {
+        "Name": "Mask Quality",
+        "Hint": "The maximum resolution of a saved mask, relative to the scene pixels. A lower quality makes the scene data smaller, and the mask edges become softer. The editor paints at the full resolution. The setting applies at the next save of a mask.",
+        "Choices": {
+          "High": "High (1 mask pixel for each scene pixel)",
+          "Medium": "Medium (1 mask pixel for each 2 scene pixels)",
+          "Low": "Low (1 mask pixel for each 4 scene pixels)"
+        }
+      }
+    },
     "Tab": {
       "Label": "FX Painter"
     },
@@ -302,10 +313,13 @@
     "Editor": {
       "Title": "Mask Editor: Tile {id}",
       "Loading": "Loading the scene background...",
-      "NoBackground": "The scene has no background image.",
-      "CaptureFailed": "Cannot load the scene background image. Look at the console for more data.",
+      "NoBackground": "The tile and the scene have no image.",
+      "CaptureFailed": "Cannot load the tile image or the scene background. Look at the console for more data.",
       "VideoNotSupported": "Tile FX Painter cannot capture a video background.",
       "ShowMask": "Show Mask",
+      "IncludeBackground": "Include Background",
+      "IncludeBackgroundHint": "Show the scene background under the tile image.",
+      "NoBackgroundForTile": "The scene has no background image.",
       "ResetView": "Reset View. Use the mouse wheel to zoom. To pan, hold Space and drag, or drag with the middle mouse button.",
       "Undo": "Undo (Ctrl+Z)",
       "Redo": "Redo (Ctrl+Y)",
@@ -331,18 +345,14 @@
       "Save": "Save",
       "Saved": "The editor saved the mask.",
       "SaveFailed": "Cannot save the mask. Look at the console for more data.",
-      "InvalidDirectory": "Cannot save the mask. The Mask Directory setting must be a directory in the User Data. Change the setting in the module settings.",
       "LoadFailed": "Cannot load the saved mask \"{path}\". The editor starts with an empty mask.",
-      "CopyFailed": "Cannot copy the mask of the pasted tile. The new tile uses the mask file of the old tile, thus a save on the old tile also changes the new tile. Look at the console for more data.",
-      "CopyNoPermission": "You do not have the permission to upload files. The pasted tile uses the mask file of the old tile, thus a save on the old tile also changes the new tile.",
+      "EmbeddedMaskLabel": "embedded mask ({size} KB)",
+      "MaskSize": "{size} KB",
+      "MaskSizeHint": "The size of the saved mask in the scene data. Foundry sends the data of all scenes to each user at login.",
+      "MaskSizeWarning": "The saved mask is {size} KB. A large mask makes the scene data larger, and all users wait longer at login. Paint fewer soft edges.",
+      "CopyFailed": "Cannot embed the mask file of the pasted tile. The new tile continues to use the mask file. Look at the console for more data.",
       "UnsavedTitle": "Unsaved Mask",
       "UnsavedContent": "The mask has unsaved changes. Close the editor and discard the changes?"
-    },
-    "Settings": {
-      "MaskDirectory": {
-        "Name": "Mask Directory",
-        "Hint": "The directory in the User Data for the mask files of the Mask Editor. Other sources, for example Core Data and S3, do not work. The default directory stays after a module update. A module update or a reinstall can delete other directories in modules/tile-fx-painter/."
-      }
     }
   }
 }

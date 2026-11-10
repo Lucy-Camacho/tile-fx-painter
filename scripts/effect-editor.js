@@ -1,79 +1,40 @@
-import { MODULE_ID } from "./main.js";
-import { captureBackground, loadImage } from "./background-capture.js";
+import { MODULE_ID, getMaskQualityScale } from "./main.js";
+import { captureTile, loadImage } from "./background-capture.js";
 import { MaskCanvas } from "./mask-canvas.js";
-import { changesTileFrame, getBackgroundSource } from "./compat.js";
+import { changesTileFrame, getBackgroundSource, getSavedTileFrame, getSavedTileImageSource } from "./compat.js";
+import {
+  blobToDataUrl, encodeMaskPng, getEmbeddedMaskSize, getImageMaskValues, getMaskLabel, getMaskSaveSize, isEmbeddedMask,
+  scaleMaskValues
+} from "./mask-data.js";
 
 const { ApplicationV2, DialogV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
+/** Above this size, a save warns the user. Each client loads the masks of all scenes at login. */
+const MASK_SIZE_WARNING = 1024 * 1024;
+
 /**
- * Get the mask directory from the setting.
- * The folder picker of the setting keeps only the path, not the file source. For an S3 folder, the path does not
- * include the bucket. Thus the editor uses only the "data" source, and refuses a path that is not in the user data.
- * @returns {string|null}  A path without a "/" at the start or the end, or null if the path is not in the user data.
+ * @param {number} bytes
+ * @returns {string}  The size in KB, with one decimal below 10 KB.
  */
-function getMaskDirectory() {
-  const dir = game.settings.get(MODULE_ID, "maskDirectory").trim().replace(/^\/+|\/+$/g, "");
-  if (/^[a-z][a-z\d+.-]*:/i.test(dir)) return null;
-  // The FilePicker also uses this list to find paths in the "public" source.
-  if (CONST.FILE_PICKER_PUBLIC_DIRS.includes(dir.split("/")[0])) return null;
-  return dir;
+function formatKilobytes(bytes) {
+  const kb = bytes / 1024;
+  return kb < 10 ? kb.toFixed(1) : String(Math.round(kb));
 }
 
 /**
- * Get the name of the mask folder of a scene, in the format "<scene name>(<scene id>)".
- * The id keeps the folder unique when two scenes have the same name.
- * @param {Scene} scene
- * @returns {string}
- */
-function getSceneFolder(scene) {
-  // Windows refuses the characters <>:"/\|?* and control characters, and a name that ends with a dot or a space.
-  // The server decodes the path with decodeURIComponent, thus a "%" can change the path or cause an error.
-  const name = scene.name.replace(/[<>:"/\\|?*%\x00-\x1f]/g, "").trim().replace(/[. ]+$/, "");
-  return `${name}(${scene.id})`;
-}
-
-/**
- * Make a directory in the user data, and each parent directory that does not exist.
- * @param {string} dir  A path without a "/" at the start or the end.
- * @returns {Promise<void>}
- */
-async function ensureDirectory(dir) {
-  const FilePicker = foundry.applications.apps.FilePicker.implementation;
-  try {
-    await FilePicker.browse("data", dir);
-    return;
-  } catch {
-    // The directory does not exist.
-  }
-  const parts = dir.split("/");
-  for (let i = 1; i <= parts.length; i++) {
-    try {
-      await FilePicker.createDirectory("data", parts.slice(0, i).join("/"));
-    } catch {
-      // The directory exists already. If there is a different problem, the upload fails and tells the user.
-    }
-  }
-}
-
-/**
- * Upload a mask as the file of a tile, in the scene folder of the mask directory.
+ * Encode mask values as a data URL at the size that the "maskQuality" setting allows for the tile.
  * @param {TileDocument} tile
- * @param {string} root  The mask directory from getMaskDirectory.
- * @param {Blob} blob    The PNG data.
- * @returns {Promise<string>}  The value of the tile flag "mask".
+ * @param {Uint8Array} values
+ * @param {number} width
+ * @param {number} height
+ * @returns {Promise<{mask: string, size: number}>}  The data URL and the PNG size in bytes.
  */
-async function uploadMask(tile, root, blob) {
-  const folder = getSceneFolder(tile.parent);
-  const dir = root ? `${root}/${folder}` : folder;
-  const file = new File([blob], `${tile.parent.id}-${tile.id}.png`, { type: "image/png" });
-
-  await ensureDirectory(dir);
-  const FilePicker = foundry.applications.apps.FilePicker.implementation;
-  const result = await FilePicker.upload("data", dir, file, {}, { notify: false });
-  if (!result?.path) throw new Error(`${MODULE_ID} | The upload of "${file.name}" to "${dir}" failed`);
-
-  // The file name stays the same for each save. The timestamp makes a new URL, thus the browser does not show an old cached image.
-  return `${result.path}?v=${Date.now()}`;
+async function encodeTileMask(tile, values, width, height) {
+  const frame = getSavedTileFrame(tile);
+  const size = getMaskSaveSize(width, height, frame.width, frame.height, getMaskQualityScale());
+  const scaled = scaleMaskValues(values, width, height, size.width, size.height);
+  const blob = await encodeMaskPng(scaled, size.width, size.height);
+  return { mask: await blobToDataUrl(blob), size: blob.size };
 }
 
 /**
@@ -137,11 +98,19 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
   #captureId = 0;
 
   /**
-   * The background source of the last capture, as JSON. A scene or level update compares it, and captures again only
-   * if the background under the tile changed.
+   * The image sources of the last capture, as JSON. An update compares it, and captures again only if an image changed.
    * @type {string}
    */
-  #backgroundKey = "";
+  #captureKey = "";
+
+  /**
+   * The layers of the last capture. A toggle change composes them again, and does not load the images again.
+   * @type {import("./background-capture.js").TileCapture|null}
+   */
+  #layers = null;
+
+  /** Not kept between windows, as "Show Mask". */
+  #includeBackground = true;
 
   /** The saved mask of the tile is in the mask. The editor loads it only one time, at the first capture. */
   #maskLoaded = false;
@@ -168,7 +137,7 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
   /**
    * Tell if a tile is in its scene.
    * After a drag on the canvas, the tile sheet shows a preview tile with a null id until the user clicks "Create Tile".
-   * The editor cannot save a mask for this tile, because the file name and the "mask" flag need the tile id.
+   * The editor cannot save a mask for this tile, because the "mask" flag needs a tile in the scene.
    * @param {TileDocument} tile
    * @returns {boolean}
    */
@@ -234,6 +203,9 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
       showPolygonHint: this.#toolHasOptions(this.mask.tool, "polygon"),
       shapeMode: this.mask.shapeMode,
       showMask: this.mask.showMask,
+      hasTileImage: !!this.#layers?.image,
+      hasBackground: !!this.#layers?.background,
+      includeBackground: this.#includeBackground,
       canUndo: this.mask.canUndo,
       canRedo: this.mask.canRedo,
       canSave: this.canSave
@@ -285,6 +257,11 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     el.querySelector("[name=showMask]").addEventListener("change", (event) => {
       this.mask.setShowMask(event.currentTarget.checked);
     });
+    el.querySelector("[name=includeBackground]")?.addEventListener("change", (event) => {
+      this.setIncludeBackground(event.currentTarget.checked);
+    });
+
+    this.refreshMaskSize();
 
     // Show the mask of an earlier capture at once. The new capture replaces it when it is ready.
     if (this.mask.base) this.mask.attach(this.element.querySelector(".tile-fx-painter-editor-view"));
@@ -330,25 +307,25 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /**
-   * Capture the background under the tile again and show it in the view area.
+   * Capture the background and the tile image again, and show them in the view area.
    * The capture uses the saved tile data.
    * @returns {Promise<void>}
    */
   async recapture() {
     const captureId = ++this.#captureId;
-    this.#backgroundKey = JSON.stringify(getBackgroundSource(this.tile));
+    this.#captureKey = this.#getCaptureKey();
     // Load the saved mask at the same time as the capture. The mask gets its size from the capture, thus the load waits for it.
     const savedMask = this.#maskLoaded ? null : this.#loadSavedMask();
 
     let capture = null;
     let message = "TILE_FX_PAINTER.Editor.NoBackground";
     try {
-      capture = await captureBackground(this.tile);
+      capture = await captureTile(this.tile);
     } catch (err) {
       console.error(err);
       message = "TILE_FX_PAINTER.Editor.CaptureFailed";
-      // Thus the next scene or level update tries the capture again. A newer capture keeps its own key.
-      if (captureId === this.#captureId) this.#backgroundKey = "";
+      // Thus the next update tries the capture again. A newer capture keeps its own key.
+      if (captureId === this.#captureId) this.#captureKey = "";
     }
     const savedImage = await savedMask;
 
@@ -356,8 +333,11 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     const view = this.element?.querySelector(".tile-fx-painter-editor-view");
     if ((captureId !== this.#captureId) || !view) return;
 
+    this.#layers = capture;
+    // The first render did not know the capture result. A new render replaces the view element, thus change the checkbox directly.
+    this.#updateCaptureToggle();
     if (capture) {
-      this.mask.setBase(capture);
+      this.#composeBase();
       if (savedMask) {
         this.#maskLoaded = true;
         if (savedImage) this.mask.load(savedImage);
@@ -373,40 +353,84 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
   /**
-   * Capture again if the background image under the tile, or its placement, changed after the last capture.
+   * Capture again if the background, the tile image, or their placement changed after the last capture.
    */
-  refreshBackground() {
-    if (JSON.stringify(getBackgroundSource(this.tile)) !== this.#backgroundKey) this.recapture();
+  refreshCapture() {
+    if (this.#getCaptureKey() !== this.#captureKey) this.recapture();
   }
 
   /**
-   * Save the mask as a PNG file in the scene folder of the mask directory, and keep the file path in the tile flag "mask".
-   * If the scene name changes, the next save goes into a new folder. The old file stays, and the tile uses the new file.
+   * Show or hide the scene background under the tile image. The images do not load again.
+   * @param {boolean} include
+   */
+  setIncludeBackground(include) {
+    this.#includeBackground = !!include;
+    this.#updateCaptureToggle();
+    if (this.#layers) this.#composeBase();
+  }
+
+  /** @returns {string} */
+  #getCaptureKey() {
+    return JSON.stringify({ background: getBackgroundSource(this.tile), image: getSavedTileImageSource(this.tile) });
+  }
+
+  /**
+   * Make the base of the mask from the capture layers and the mode.
+   * The two layers have the same size, thus the mask and the undo history stay.
+   */
+  #composeBase() {
+    const { background, image, width, height } = this.#layers;
+    // With no background, the toggle has no effect. With no image, the background is the only layer.
+    if (!image || !background) return this.mask.setBase(image ?? background);
+    if (!this.#includeBackground) return this.mask.setBase(image);
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(background, 0, 0);
+    ctx.drawImage(image, 0, 0);
+    this.mask.setBase(canvas);
+  }
+
+  /** Show the "Include Background" checkbox only for a tile image. Disable it if the scene has no background. */
+  #updateCaptureToggle() {
+    const input = this.element?.querySelector("[name=includeBackground]");
+    if (!input) return;
+    input.checked = this.#includeBackground;
+    input.disabled = !this.#layers?.background;
+    const label = input.closest("label") ?? input;
+    label.hidden = !this.#layers?.image;
+    label.dataset.tooltip = input.disabled
+      ? "TILE_FX_PAINTER.Editor.NoBackgroundForTile"
+      : "TILE_FX_PAINTER.Editor.IncludeBackgroundHint";
+  }
+
+  /**
+   * Save the mask as a grayscale PNG data URL in the tile flag "mask". A tile with an old mask file gets embedded data.
    * @returns {Promise<boolean>}  True if the editor saved the mask.
    */
   async save() {
     if (!this.canSave || !this.mask.mask) return false;
-    const root = getMaskDirectory();
-    if (root === null) {
-      ui.notifications.error("TILE_FX_PAINTER.Editor.InvalidDirectory", { localize: true });
-      return false;
-    }
     this.#saving = true;
     this.#updateToolbar();
     try {
-      // The last pointer points of a stroke go into the mask canvas only in the next frame. The file must include them.
+      // The last pointer points of a stroke go into the mask canvas only in the next frame. The save must include them.
       this.mask.endStroke();
-      // The browser takes the canvas pixels when toBlob starts. Changes after this point stay unsaved.
+      // getValues copies the pixels. Changes during the encode stay unsaved.
       const version = this.mask.version;
-      const blob = await new Promise((resolve) => this.mask.mask.toBlob(resolve, "image/png"));
-      if (!blob) throw new Error(`${MODULE_ID} | The mask canvas did not give a PNG file`);
-      const mask = await uploadMask(this.tile, root, blob);
+      // The editor keeps the full resolution for the paint tools. Only the saved copy is smaller.
+      const { width, height } = this.mask.mask;
+      const { mask, size } = await encodeTileMask(this.tile, this.mask.getValues(), width, height);
 
       // "render: false" stops a new render of the open tile sheets on all clients. A new render fills the form from the saved
       // data and removes the changes that the user did not submit. The sheets do not show the "mask" flag, thus they stay correct.
       await this.tile.update({ [`flags.${MODULE_ID}.mask`]: mask }, { render: false });
       this.mask.markSaved(version);
       ui.notifications.info("TILE_FX_PAINTER.Editor.Saved", { localize: true });
+      if (size > MASK_SIZE_WARNING) {
+        ui.notifications.warn(game.i18n.format("TILE_FX_PAINTER.Editor.MaskSizeWarning", { size: formatKilobytes(size) }));
+      }
       return true;
     } catch (err) {
       console.error(err);
@@ -428,10 +452,22 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     try {
       return await loadImage(path);
     } catch (err) {
-      console.error(`${MODULE_ID} | Cannot load the saved mask "${path}"`, err);
-      ui.notifications.warn(game.i18n.format("TILE_FX_PAINTER.Editor.LoadFailed", { path }));
+      const label = getMaskLabel(path);
+      console.error(`${MODULE_ID} | Cannot load the saved mask "${label}"`, err);
+      ui.notifications.warn(game.i18n.format("TILE_FX_PAINTER.Editor.LoadFailed", { path: label }));
       return null;
     }
+  }
+
+  /** Show the size of the saved mask in the toolbar. Only an embedded mask adds to the scene data, thus a file shows no size. */
+  refreshMaskSize() {
+    const el = this.element?.querySelector(".tile-fx-painter-editor-size");
+    if (!el) return;
+    const src = this.tile.flags[MODULE_ID]?.mask;
+    const size = isEmbeddedMask(src) ? getEmbeddedMaskSize(src) : 0;
+    el.hidden = !size;
+    el.classList.toggle("warning", size > MASK_SIZE_WARNING);
+    el.textContent = size ? game.i18n.format("TILE_FX_PAINTER.Editor.MaskSize", { size: formatKilobytes(size) }) : "";
   }
 
   /**
@@ -567,12 +603,14 @@ function getEditor(tile) {
 }
 
 // The capture uses the saved tile data. Capture again when the area under the tile changes.
-// A change of the tile levels (v14) can change the background image.
+// A change of the tile levels (v14) can change the background image. A texture change can change the tile image.
 Hooks.on("updateTile", (tile, changes) => {
   const editor = getEditor(tile);
   if (!editor) return;
+  // A save on this client or on a different client changes the mask.
+  if (foundry.utils.hasProperty(changes, `flags.${MODULE_ID}.mask`)) editor.refreshMaskSize();
   if (changesTileFrame(changes)) editor.recapture();
-  else editor.refreshBackground();
+  else editor.refreshCapture();
 });
 
 /**
@@ -580,7 +618,7 @@ Hooks.on("updateTile", (tile, changes) => {
  * @param {Scene|null} scene
  */
 function refreshSceneEditors(scene) {
-  scene?.tiles.forEach((tile) => getEditor(tile)?.refreshBackground());
+  scene?.tiles.forEach((tile) => getEditor(tile)?.refreshCapture());
 }
 
 // A scene update can change the v13 background or the scene rectangle. A level update can change the v14 background.
@@ -604,26 +642,20 @@ Hooks.on("deleteTile", (tile) => discardEditor(tile));
 Hooks.on("deleteScene", (scene) => scene.tiles.forEach(discardEditor));
 
 /**
- * Copy the mask file of a pasted tile to the file of the new tile.
- * A save overwrites the file of its tile. Without a copy, a save on the old tile also changes the mask of the new tile.
- * If the copy fails, the new tile keeps the old path, thus it still shows the mask.
+ * Embed the old mask file of a pasted tile in the new tile.
+ * An embedded mask is already a copy. A file mask must not stay shared, because the two tiles must have separate masks.
+ * If the encode fails, the new tile keeps the file path, thus it still shows the mask.
  * @param {TileDocument} tile
  * @returns {Promise<void>}
  */
 async function copyPastedMask(tile) {
   const path = tile.flags[MODULE_ID]?.mask;
-  if (!path) return;
-  if (!game.user.can("FILES_UPLOAD")) {
-    ui.notifications.warn("TILE_FX_PAINTER.Editor.CopyNoPermission", { localize: true });
-    return;
-  }
+  if (!path || isEmbeddedMask(path)) return;
   try {
-    const root = getMaskDirectory();
-    if (root === null) throw new Error(`${MODULE_ID} | The mask directory is not in the user data`);
-    const response = await fetch(path);
-    if (!response.ok) throw new Error(`${MODULE_ID} | Cannot load the mask "${path}" (${response.status})`);
-    const mask = await uploadMask(tile, root, await response.blob());
-    // An undo can delete the tile during the upload.
+    const image = await loadImage(path);
+    // A 0.1.0 mask file has the full image resolution, thus the quality limit also applies here.
+    const { mask } = await encodeTileMask(tile, getImageMaskValues(image), image.naturalWidth, image.naturalHeight);
+    // An undo can delete the tile during the encode.
     if (!EffectEditor.isCreated(tile)) return;
     // "isUndo" keeps this update out of the canvas history. Else the first Ctrl+Z after a paste restores the shared path,
     // and the tile stays. Foundry reads this option only for the history and for token movement.
@@ -634,8 +666,9 @@ async function copyPastedMask(tile) {
   }
 }
 
-// Only the client that pasted the tile makes the copy. Foundry does a paste with a new id and no "keepId".
+// Only the client that pasted the tile embeds the mask. Foundry does a paste with a new id and no "keepId".
 // With "keepId" (the undo of a deletion, or a cut and paste to a different scene), no different tile uses the file.
+// That tile gets embedded data at its next save.
 Hooks.on("createTile", (tile, options, userId) => {
   if ((userId !== game.user.id) || options.keepId) return;
   copyPastedMask(tile);
