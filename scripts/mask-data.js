@@ -135,6 +135,26 @@ export async function encodeMaskPng(values, width, height, { bitDepth = 8 } = {}
 }
 
 /**
+ * Read the mask values of a mask image at its full size.
+ * min(R, A) reads an opaque grayscale mask and an old white mask with alpha. Same rule as maskValue() in the shader.
+ * @param {HTMLImageElement} image
+ * @returns {Uint8Array}
+ */
+export function getImageMaskValues(image) {
+  const width = image.naturalWidth;
+  const height = image.naturalHeight;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(image, 0, 0);
+  const px = ctx.getImageData(0, 0, width, height).data;
+  const values = new Uint8Array(width * height);
+  for (let i = 0; i < values.length; i++) values[i] = Math.min(px[i * 4], px[i * 4 + 3]);
+  return values;
+}
+
+/**
  * @param {Blob} blob
  * @returns {Promise<string>}  A "data:" URL.
  */

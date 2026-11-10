@@ -184,7 +184,7 @@ export class MaskCanvas {
     this.#putPixels();
     this.#undo.length = 0;
     this.#redo.length = 0;
-    // A loaded file is the saved state, so the mask is not dirty.
+    // A loaded mask is the saved state, so the mask is not dirty.
     this.#version = this.#savedVersion = ++this.#lastVersion;
     this.onHistoryChange?.();
   }
@@ -192,6 +192,14 @@ export class MaskCanvas {
   endStroke() {
     this.#flushStroke();
     this.#stroke = null;
+  }
+
+  /** @returns {Uint8Array}  The mask value (alpha) of each pixel, row by row. */
+  getValues() {
+    const px = this.#pixels.data;
+    const values = new Uint8Array(px.length / 4);
+    for (let i = 0; i < values.length; i++) values[i] = px[i * 4 + 3];
+    return values;
   }
 
   attach(view) {

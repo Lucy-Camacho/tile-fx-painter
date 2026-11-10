@@ -117,6 +117,15 @@
   flex: 1;
 }
 
+.tile-fx-painter-editor-size {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.tile-fx-painter-editor-size.warning {
+  color: var(--color-level-warning, #ee9b3a);
+}
+
 /* The view must not take its size from the display canvas. The canvas takes its size from the view. */
 .tile-fx-painter-editor-view {
   position: relative;
