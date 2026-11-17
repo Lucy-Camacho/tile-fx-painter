@@ -1,6 +1,6 @@
 import { MODULE_ID } from "./main.js";
 import { getEffectSettings } from "./effects.js";
-import { getBackgroundSource } from "./compat.js";
+import { getBackgroundSource, getLiveTileDocument, reapplySheetChanges } from "./compat.js";
 import { loadImage } from "./background-capture.js";
 import { isEmbeddedMask } from "./mask-data.js";
 import { TileFxMesh } from "./tile-fx-mesh.js";
@@ -51,14 +51,16 @@ async function loadMaskTexture(src) {
   }
 }
 
-/** Make, update, or remove the effect mesh of a tile, from the tile flags. */
+/** Make, update, or remove the effect mesh of a tile, from the tile flags and the unsaved changes of its sheet. */
 async function syncTile(tile) {
   if (tile.isPreview) return;
   const tileId = tile.document.id;
   const syncId = (syncIds.get(tileId) ?? 0) + 1;
   syncIds.set(tileId, syncId);
 
-  const settings = getEffectSettings(tile.document);
+  const settings = getEffectSettings(getLiveTileDocument(tile.document));
+  // The form has no mask input, and the v14 preview keeps an old mask after an editor save.
+  settings.mask = getEffectSettings(tile.document).mask;
   if (!settings.enabled || !settings.mask || !Object.hasOwn(SHADERS, settings.effect)) {
     removeMesh(tileId);
     return;
@@ -107,6 +109,16 @@ async function syncTile(tile) {
   mesh.refreshState(tile);
 }
 
+/**
+ * Sync the effect mesh of a tile after a change in its sheet.
+ * A new tile has a preview object and no mask, thus this does nothing for it.
+ * @param {TileDocument} tileDocument
+ */
+export function refreshTileFx(tileDocument) {
+  const tile = tileDocument.object;
+  if (tileDocument.rendered && !tile.isPreview) syncTile(tile);
+}
+
 Hooks.on("drawTile", (tile) => syncTile(tile));
 
 Hooks.on("refreshTile", (tile, flags) => {
@@ -125,10 +137,13 @@ function changesBackground(tileDocument) {
 
 // Foundry does not draw or refresh a tile after a flag change. See Tile#_onUpdate.
 // A change of the tile levels (v14) can change the background image.
-Hooks.on("updateTile", (tileDocument, changed) => {
+Hooks.on("updateTile", (tileDocument, changed, options) => {
   const flags = changed.flags;
   const changesFlags = !!flags && ((MODULE_ID in flags) || (`-=${MODULE_ID}` in flags));
   if (!changesFlags && !changesBackground(tileDocument)) return;
+  // Only for render: false (editor save and undo). A normal update renders the sheet again from the
+  // saved data, and a reapply then writes old form values over a change from a different user.
+  if (options.render === false) reapplySheetChanges(tileDocument);
   if (tileDocument.rendered) syncTile(tileDocument.object);
 });
 
