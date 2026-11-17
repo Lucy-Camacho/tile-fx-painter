@@ -47,10 +47,9 @@ function paeth(a, b, c) {
  * Packs the values into PNG scanlines, each with the filter that gives the smallest sum of signed bytes.
  * This is the libpng heuristic. It usually gives the best deflate result.
  */
-function filterRows(values, width, height, bitDepth) {
-  const rowBytes = Math.ceil((width * bitDepth) / 8);
-  const levels = (1 << bitDepth) - 1;
-  const pixelsPerByte = 8 / bitDepth;
+function filterRows(values, width, height) {
+  // 8-bit grayscale has one byte for each pixel.
+  const rowBytes = width;
   const out = new Uint8Array(height * (rowBytes + 1));
   let prev = new Uint8Array(rowBytes);
   let row = new Uint8Array(rowBytes);
@@ -58,17 +57,8 @@ function filterRows(values, width, height, bitDepth) {
 
   for (let y = 0; y < height; y++) {
     const src = y * width;
-    if (bitDepth === 8) row.set(values.subarray(src, src + width));
-    else {
-      row.fill(0);
-      for (let x = 0; x < width; x++) {
-        const v = Math.round((values[src + x] * levels) / 255);
-        const shift = 8 - bitDepth * ((x % pixelsPerByte) + 1);
-        row[(x / pixelsPerByte) | 0] |= v << shift;
-      }
-    }
+    row.set(values.subarray(src, src + width));
 
-    // A pixel below 8 bits uses the byte to the left as its neighbor, as the PNG standard says.
     let best = 0;
     let bestSum = Infinity;
     for (let f = 0; f < 5; f++) {
@@ -108,25 +98,22 @@ async function deflate(bytes) {
 }
 
 /**
- * Make a grayscale PNG (color type 0) from one mask value for each pixel.
+ * Make an 8-bit grayscale PNG (color type 0) from one mask value for each pixel.
  * @param {Uint8Array|Uint8ClampedArray} values  The mask values, 0 to 255, row by row.
  * @param {number} width
  * @param {number} height
- * @param {object} [options]
- * @param {1|2|4|8} [options.bitDepth=8]  A depth below 8 rounds each value to fewer levels.
  * @returns {Promise<Blob>}
  */
-export async function encodeMaskPng(values, width, height, { bitDepth = 8 } = {}) {
-  if (![1, 2, 4, 8].includes(bitDepth)) throw new Error(`Bit depth ${bitDepth} is not valid`);
+export async function encodeMaskPng(values, width, height) {
   if (values.length !== width * height) throw new Error(`The mask has ${values.length} values, not ${width * height}`);
 
   const header = new Uint8Array(13);
   const view = new DataView(header.buffer);
   view.setUint32(0, width);
   view.setUint32(4, height);
-  header[8] = bitDepth;
+  header[8] = 8;
   // Color type 0 (grayscale), compression 0, filter method 0, no interlace.
-  const idat = await deflate(filterRows(values, width, height, bitDepth));
+  const idat = await deflate(filterRows(values, width, height));
 
   return new Blob(
     [PNG_SIGNATURE, makeChunk("IHDR", header), makeChunk("IDAT", idat), makeChunk("IEND", new Uint8Array(0))],

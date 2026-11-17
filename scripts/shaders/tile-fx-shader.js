@@ -26,8 +26,7 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
     baseMatrix: [1, 0, 0, 0, 1, 0, 0, 0, 1],
     sceneMatrix: [1, 0, 0, 0, 1, 0, 0, 0, 1],
     baseFrame: [0, 0, 1, 1],
-    hasBase: 0,
-    baseTexelSize: [1, 1]
+    hasBase: 0
   };
 
   /**
@@ -36,7 +35,6 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
    * - sceneMatrix changes a mask UV to a position in the scene rectangle, from (0, 0) to (1, 1).
    * - baseFrame changes a position in the background image to a UV of the background texture.
    *   It is (x, y, width, height) of the texture frame in UV units.
-   * - baseTexelSize is the size of one background texture pixel in UV units.
    */
   static FX_COMMON = `
     uniform float intensity;
@@ -50,7 +48,6 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
     uniform mat3 sceneMatrix;
     uniform vec4 baseFrame;
     uniform float hasBase;
-    uniform vec2 baseTexelSize;
 
     // Change a mask UV to a background texture UV.
     // Returns false outside the background image, or when the tile has no background image.
@@ -65,13 +62,6 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
       vec2 uv;
       if ( !baseUv(maskUv, uv) ) return vec4(0.0);
       return texture(baseSampler, uv);
-    }
-
-    // Keep a background texture UV half a pixel inside the texture frame.
-    // Thus a sample near the scene edge does not read the pixels next to the frame.
-    vec2 clampBaseUv(vec2 uv) {
-      vec2 halfTexel = baseTexelSize * 0.5;
-      return clamp(uv, baseFrame.xy + halfTexel, baseFrame.xy + baseFrame.zw - halfTexel);
     }
 
     // The straight (not premultiplied) color of a premultiplied color. It is black when the alpha is 0.
@@ -310,8 +300,6 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
       frameUvs[1] = frame.y / baseTexture.height;
       frameUvs[2] = frame.width / baseTexture.width;
       frameUvs[3] = frame.height / baseTexture.height;
-      uniforms.baseTexelSize[0] = 1 / baseTexture.realWidth;
-      uniforms.baseTexelSize[1] = 1 / baseTexture.realHeight;
     }
   }
 }
