@@ -93,6 +93,38 @@ export function getSheetDocument(app) {
 }
 
 /**
+ * Not tileDocument.sheet: the getter makes a new sheet if none exists.
+ * @param {TileDocument} tileDocument
+ * @returns {TileConfig|null}
+ */
+function getOpenTileSheet(tileDocument) {
+  const { TileConfig } = foundry.applications.sheets;
+  return Object.values(tileDocument.apps).find((app) => (app instanceof TileConfig) && app.rendered) ?? null;
+}
+
+/**
+ * Get the tile data with the unsubmitted changes of an open tile sheet, for the live preview.
+ * Not tile._preview: a v14 drag replaces it with the drag clone.
+ * @param {TileDocument} tileDocument
+ * @returns {TileDocument}
+ */
+export function getLiveTileDocument(tileDocument) {
+  const sheet = getOpenTileSheet(tileDocument);
+  return sheet ? getSheetDocument(sheet) : tileDocument;
+}
+
+/**
+ * Write the unsubmitted form changes into the tile document again, after an update.
+ * v13: an update initializes the document again from the source and removes the changes. A `render: false` update
+ * does not render the form again, thus the form still shows them. v14 keeps them in the preview document.
+ * @param {TileDocument} tileDocument
+ */
+export function reapplySheetChanges(tileDocument) {
+  if (isV14()) return;
+  getOpenTileSheet(tileDocument)?._onChangeForm();
+}
+
+/**
  * Remove the changes that the user did not submit from the tile document, after the tile sheet closes.
  * In v13, TileConfig#_onChangeForm writes the form changes into the tile document, and no core code removes them.
  * Thus the sheet shows them when it opens again, and the tile stays changed on the canvas. v14 discards its preview.
