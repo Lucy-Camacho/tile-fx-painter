@@ -1,6 +1,8 @@
 import { MODULE_ID } from "./main.js";
 import { getEffectSettings } from "./effects.js";
 import { getBackgroundSource } from "./compat.js";
+import { loadImage } from "./background-capture.js";
+import { isEmbeddedMask } from "./mask-data.js";
 import { TileFxMesh } from "./tile-fx-mesh.js";
 import { GlowShader } from "./shaders/glow.js";
 import { MetallicShader } from "./shaders/metallic.js";
@@ -32,6 +34,23 @@ function removeMesh(tileId) {
   meshes.delete(tileId);
 }
 
+/**
+ * An embedded mask does not go in the Foundry cache. Each save makes a new data URL, and Foundry removes
+ * an unused cache entry only at a scene load, after 15 minutes. Thus each old mask stays on the GPU.
+ * @param {string} src  The mask source.
+ * @returns {Promise<{texture: PIXI.Texture|null, owned: boolean}>}  If owned is true, the caller must destroy the texture.
+ */
+async function loadMaskTexture(src) {
+  if (!isEmbeddedMask(src)) return { texture: await foundry.canvas.loadTexture(src), owned: false };
+  try {
+    const image = await loadImage(src);
+    return { texture: new PIXI.Texture(new PIXI.BaseTexture(image)), owned: true };
+  } catch (err) {
+    console.error(err);
+    return { texture: null, owned: false };
+  }
+}
+
 /** Make, update, or remove the effect mesh of a tile, from the tile flags. */
 async function syncTile(tile) {
   if (tile.isPreview) return;
@@ -50,25 +69,27 @@ async function syncTile(tile) {
   const loadMask = mesh?.maskSrc !== settings.mask;
   const loadBackground = mesh?.backgroundKey !== JSON.stringify(background);
   if (loadMask || loadBackground) {
-    const [maskTexture, backgroundTexture] = await Promise.all([
-      loadMask ? foundry.canvas.loadTexture(settings.mask) : null,
+    const [mask, backgroundTexture] = await Promise.all([
+      loadMask ? loadMaskTexture(settings.mask) : null,
       (loadBackground && background) ? foundry.canvas.loadTexture(background.src) : null
     ]);
     // A newer sync, a tile deletion, or a canvas teardown can occur during the load.
-    if ((syncIds.get(tileId) !== syncId) || tile.destroyed) return;
+    if ((syncIds.get(tileId) !== syncId) || tile.destroyed) {
+      if (mask?.owned) mask.texture.destroy(true);
+      return;
+    }
     if (loadMask) {
-      if (!maskTexture) {
+      if (!mask.texture) {
         console.warn(`${MODULE_ID} | Cannot load the mask "${settings.mask}" of tile ${tileId}`);
         removeMesh(tileId);
         return;
       }
       if (!mesh) {
-        mesh = new TileFxMesh({ texture: maskTexture, name: `${MODULE_ID}.${tileId}`, object: tile, shaderClass: SHADERS[settings.effect] });
+        mesh = new TileFxMesh({ texture: mask.texture, name: `${MODULE_ID}.${tileId}`, object: tile, shaderClass: SHADERS[settings.effect] });
         canvas.primary.addChild(mesh);
         meshes.set(tileId, mesh);
       }
-      else mesh.texture = maskTexture;
-      mesh.maskSrc = settings.mask;
+      mesh.setMask(settings.mask, mask.texture, mask.owned);
     }
     if (loadBackground) {
       // With no background texture, the effect shows with no background. The mask is still correct.

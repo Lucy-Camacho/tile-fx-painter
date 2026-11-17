@@ -38,8 +38,11 @@ export class TileFxMesh extends foundry.canvas.primary.PrimarySpriteMesh {
   /** The mat3 (column-major) that changes a mask UV to a position in the scene rectangle, from (0, 0) to (1, 1). */
   sceneMatrix = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1]);
 
-  /** The path of the current mask texture. A different path causes a new load. */
+  /** The source of the current mask texture. A different source causes a new load. Use setMask to change it. */
   maskSrc = null;
+
+  /** True if the mesh must destroy the mask texture. A texture from the Foundry cache is shared, thus the mesh does not own it. */
+  #ownsMask = false;
 
   /**
    * The texture of the background image under the tile, or null.
@@ -52,6 +55,28 @@ export class TileFxMesh extends foundry.canvas.primary.PrimarySpriteMesh {
 
   /** @type {ReturnType<import("./compat.js").getBackgroundSource>} */
   #background = null;
+
+  /**
+   * Set the mask texture, and destroy the old texture if the mesh owns it.
+   * @param {string} src  The mask source.
+   * @param {PIXI.Texture} texture
+   * @param {boolean} owned  True if no other object uses the texture.
+   */
+  setMask(src, texture, owned) {
+    const old = this.#ownsMask ? this.texture : null;
+    this.texture = texture;
+    this.maskSrc = src;
+    this.#ownsMask = owned;
+    if (old && (old !== texture) && old.baseTexture) old.destroy(true);
+  }
+
+  /** @override */
+  destroy(options) {
+    // The canvas teardown also comes here, because the primary group destroys its children.
+    const mask = this.#ownsMask ? this.texture : null;
+    super.destroy(options);
+    if (mask?.baseTexture) mask.destroy(true);
+  }
 
   /**
    * Set the background image under the tile. Call refreshTransform after this, because the base matrix uses it.
