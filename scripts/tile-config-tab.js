@@ -2,6 +2,7 @@ import { MODULE_ID } from "./main.js";
 import { EffectEditor } from "./effect-editor.js";
 import { EFFECTS, getEffectParams, getEffectSettings } from "./effects.js";
 import { getSheetDocument, resetSheetDocument } from "./compat.js";
+import { refreshTileFx } from "./tile-fx.js";
 
 const TAB_ID = MODULE_ID;
 const TEMPLATE = `modules/${MODULE_ID}/templates/tile-config-tab.hbs`;
@@ -14,6 +15,9 @@ const SHADER_CHOICES = {
 // The open sections of each open sheet, as a Set of "<effectId>.<groupId>".
 // Each render builds the tab again, thus a re-render needs this data to keep the sections open. The data goes when the sheet closes.
 const openParamGroups = new WeakMap();
+
+// The forms with the live preview listener. The sheet keeps its form across renders, and makes a new form after a close.
+const previewForms = new WeakSet();
 
 /**
  * Get the template data of the param groups of each effect.
@@ -66,6 +70,12 @@ Hooks.on("renderTileConfig", async (app, element) => {
   const nav = element.querySelector("nav.sheet-tabs");
   const group = nav?.querySelector("[data-group]")?.dataset.group;
   if (!group) return;
+
+  // The core form listener is added first, thus this listener reads the new values from the live document.
+  if (!previewForms.has(app.form)) {
+    previewForms.add(app.form);
+    app.form.addEventListener("change", () => refreshTileFx(app.document));
+  }
 
   const idPrefix = `${app.id}-${MODULE_ID}`;
   // Show the values that the user did not submit. A re-render keeps them, the same as the core fields.
@@ -160,6 +170,8 @@ Hooks.on("renderTileConfig", async (app, element) => {
 
 Hooks.on("closeTileConfig", (app) => {
   resetSheetDocument(app);
+  // The sheet is not in document.apps now, thus the sync shows the saved values.
+  refreshTileFx(app.document);
   // Foundry keeps the sheet of a tile and uses it again. Without this delete, the sheet opens with the old sections open.
   openParamGroups.delete(app);
 });
