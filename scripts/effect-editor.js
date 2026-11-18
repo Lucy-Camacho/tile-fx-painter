@@ -266,7 +266,8 @@ export class EffectEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     // Show the mask of an earlier capture at once. The new capture replaces it when it is ready.
     if (this.mask.base) this.mask.attach(this.element.querySelector(".tile-fx-painter-editor-view"));
     this.element.focus();
-    await this.recapture();
+    // Do not wait. v14 sets the window position only after _onRender ends.
+    this.recapture();
   }
 
   /**
