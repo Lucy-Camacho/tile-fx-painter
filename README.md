@@ -6,17 +6,18 @@ The module was made for Foundry VTT. It supports V13 and V14.
 
 ## Before and After
 
-### Before
+The demo map with no effects (left) and with the effects (right). The demo map was made with Dungeondraft.
 
-The demo map with no effects. Demo map was created using Dungeondraft.
-
-<img src="docs/no-shader-demo.png" alt="The demo map with no effects" width="500" height="500">
-
-### After
-
-The same map with the effects.
-
-![The demo map with the effects](docs/shader-demo.gif)
+<table>
+  <tr>
+    <th>Before</th>
+    <th>After</th>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/no-shader-demo.png" alt="The demo map with no effects" width="400" height="400"></td>
+    <td width="50%"><img src="docs/shader-demo.gif" alt="The demo map with the effects" width="400" height="400"></td>
+  </tr>
+</table>
 
 ## Effects
 
@@ -75,8 +76,6 @@ A `tiles` argument is one value or an array. A value is a tile document, a tile 
 | `setParams(tiles, params, { effect })` | Sets the params of the effect. The default effect is the effect of the tile. |
 | `resetParams(tiles, { effect })` | Sets the params of the effect back to the defaults. |
 
-The API clamps each number to its range. A bad value or a tile that you cannot update causes an error, and no tile changes.
-
 Turn on lava on the selected tiles:
 
 ```js
@@ -84,11 +83,7 @@ const api = game.modules.get("tile-fx-painter").api;
 await api.update(canvas.tiles.controlled, { enabled: true, effect: "lava", params: { heatLevel: 1.5 } });
 ```
 
-Turn the effect of a tile on or off:
-
-```js
-await game.modules.get("tile-fx-painter").api.toggle("Scene.abc123.Tile.def456");
-```
+Refer to the [API documentation](docs/API.md) for all functions, the params of each effect, and more examples.
 
 ## Performance
 
@@ -98,7 +93,6 @@ The module was tested with more than 70 tiles, all with shader effects. The test
 
 - Only users with the permission to update the tile can open the Mask Editor.
 - You must create a tile before you can open the Mask Editor for it.
-- The effects use only the background image under the tile. They do not use other tiles or tokens.
 - Video backgrounds are not supported.
 - While you drag a tile, the effect stays at the old position.
 
