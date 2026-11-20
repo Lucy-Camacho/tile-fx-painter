@@ -1,0 +1,32 @@
+<div class="tile-fx-painter-preset-manager">
+  <p class="hint">{{localize "TILE_FX_PAINTER.PresetManager.Hint"}}</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>{{localize "TILE_FX_PAINTER.PresetManager.Effect"}}</th>
+        <th>{{localize "TILE_FX_PAINTER.PresetManager.Count"}}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each effects}}
+      <tr>
+        <td>{{localize label}}</td>
+        <td>{{count}}</td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+
+  <div class="tile-fx-painter-preset-manager-buttons">
+    <button type="button" data-action="export">
+      <i class="fa-solid fa-file-export" inert></i>
+      <span>{{localize "TILE_FX_PAINTER.PresetManager.Export"}}</span>
+    </button>
+    <button type="button" data-action="import">
+      <i class="fa-solid fa-file-import" inert></i>
+      <span>{{localize "TILE_FX_PAINTER.PresetManager.Import"}}</span>
+    </button>
+    <input type="file" accept=".json,application/json" hidden>
+  </div>
+</div>

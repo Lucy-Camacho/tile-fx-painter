@@ -3,8 +3,8 @@
  * The other files call these functions and do not test the Foundry version.
  */
 
-/** @returns {boolean}  True if Foundry is version 14 or later. */
-export function isV14() {
+/** @returns {boolean}  True if Foundry is version 14 or later. Not exported: only this file tests the version. */
+function isV14() {
   return game.release.generation >= 14;
 }
 
@@ -185,7 +185,7 @@ export function getBackgroundSource(tileDocument) {
  *   rotation: number, fit: string, scaleX: number, scaleY: number, tint: number[]}|null}
  *   The tint is RGB from 0 to 1. The src can be a video, thus the caller must test it.
  */
-export function getTileImageSource(tileDocument) {
+function getTileImageSource(tileDocument) {
   const { texture } = tileDocument;
   const src = texture?.src;
   if (!src) return null;

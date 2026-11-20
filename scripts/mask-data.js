@@ -4,7 +4,7 @@
  */
 
 /** The start of an embedded mask value. Other "data:" values are not valid masks. */
-export const EMBEDDED_MASK_PREFIX = "data:image/png;base64,";
+const EMBEDDED_MASK_PREFIX = "data:image/png;base64,";
 
 const PNG_SIGNATURE = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
