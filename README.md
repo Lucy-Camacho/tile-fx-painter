@@ -35,17 +35,17 @@ The demo map with no effects (left) and with the effects (right). The demo map w
 
 The tile configuration window has an FX Painter tab. Use this tab to enable an effect on the tile and to change it.
 
-![The FX Painter tab with the Lava effect](docs/tile-config-fx-tab-lava.jpg)
+<img src="docs/tile-config-fx-tab-lava.jpg" alt="The FX Painter tab with the Lava effect" width="400" height="500">
 
 Expand a group to show its settings. The text below each setting explains what it does.
 
-![The Lava Settings section with the Molten Rock and Crust groups expanded](docs/lava-settings-expanded-1.jpg)
+<img src="docs/lava-settings-expanded-1.jpg" alt="The Lava Settings section with the Molten Rock and Crust groups expanded" width="400" height="500">
 
 ## Mask Editor
 
 The Mask Editor shows the area of the background image under the tile.
 
-![The Mask Editor with a painted mask on a tile](docs/mask-editor.jpg)
+<img src="docs/mask-editor.jpg" alt="The Mask Editor with a painted mask on a tile" width="400" height="500">
 
 The editor has these tools:
 
