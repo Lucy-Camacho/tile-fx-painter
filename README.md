@@ -59,6 +59,37 @@ The editor can also invert the mask, clear the mask, undo a change, and redo a c
 
 The module saves each mask as a small grayscale PNG in the tile data. Thus a scene export or a compendium keeps the masks. The module continues to show the mask files of version 0.1.0. The next save of the tile embeds the mask.
 
+## API
+
+Macros and other modules can change the effect settings with `game.modules.get("tile-fx-painter").api`. The API does not change the mask. A tile with no mask shows no effect.
+
+A `tiles` argument is one value or an array. A value is a tile document, a tile on the canvas, a tile id on the viewed scene, or a tile UUID.
+
+| Function | Result |
+| --- | --- |
+| `getEffects()` | The effects, with the default value, the minimum, and the maximum of each param. |
+| `getSettings(tile)` | The saved settings of the tile. |
+| `update(tiles, changes)` | Changes `enabled`, `effect`, `intensity`, `color`, `speed`, `scale`, and `params`. A `null` color sets the default color. |
+| `enable(tiles)`, `disable(tiles)`, `toggle(tiles)` | Turns the effect on or off. |
+| `setEffect(tiles, effectId)` | Sets the effect. `"none"` removes the effect. |
+| `setParams(tiles, params, { effect })` | Sets the params of the effect. The default effect is the effect of the tile. |
+| `resetParams(tiles, { effect })` | Sets the params of the effect back to the defaults. |
+
+The API clamps each number to its range. A bad value or a tile that you cannot update causes an error, and no tile changes.
+
+Turn on lava on the selected tiles:
+
+```js
+const api = game.modules.get("tile-fx-painter").api;
+await api.update(canvas.tiles.controlled, { enabled: true, effect: "lava", params: { heatLevel: 1.5 } });
+```
+
+Turn the effect of a tile on or off:
+
+```js
+await game.modules.get("tile-fx-painter").api.toggle("Scene.abc123.Tile.def456");
+```
+
 ## Performance
 
 The module was tested with more than 70 tiles, all with shader effects. The test showed no noticeable performance decrease.

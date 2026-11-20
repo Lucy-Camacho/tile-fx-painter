@@ -164,7 +164,14 @@ export const EFFECTS = {
   }
 };
 
-const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+/** The ranges of the settings that all effects share. The tile sheet and the API use them. */
+export const SETTING_RANGES = {
+  intensity: { min: 0, max: 2, step: 0.05 },
+  speed: { min: 0, max: 3, step: 0.05 },
+  scale: { min: 0.25, max: 4, step: 0.05 }
+};
+
+export const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
 function toNumber(value, fallback) {
   const number = Number(value);

@@ -237,3 +237,14 @@ function getLowestLevel(tileDocument) {
   }
   return lowest;
 }
+
+/**
+ * Get a document update that removes a field. v14 replaces the "-=" key with a ForcedDeletion value.
+ * @param {string} path  The dot path of the field, for example "flags.tile-fx-painter.color".
+ * @returns {Record<string, *>}
+ */
+export function getDeletionUpdate(path) {
+  if (isV14()) return { [path]: new foundry.data.operators.ForcedDeletion() };
+  const index = path.lastIndexOf(".");
+  return { [`${path.slice(0, index + 1)}-=${path.slice(index + 1)}`]: null };
+}

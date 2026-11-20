@@ -23,7 +23,7 @@
     <div class="form-group">
       <label for="{{intensityId}}">{{localize "TILE_FX_PAINTER.Config.Intensity.Label"}}</label>
       <div class="form-fields">
-        <range-picker id="{{intensityId}}" name="flags.{{moduleId}}.intensity" value="{{intensity}}" min="0" max="2" step="0.05"></range-picker>
+        <range-picker id="{{intensityId}}" name="flags.{{moduleId}}.intensity" value="{{intensity}}" min="{{ranges.intensity.min}}" max="{{ranges.intensity.max}}" step="{{ranges.intensity.step}}"></range-picker>
       </div>
       <p class="hint">{{localize "TILE_FX_PAINTER.Config.Intensity.Hint"}}</p>
     </div>
@@ -39,7 +39,7 @@
     <div class="form-group">
       <label for="{{speedId}}">{{localize "TILE_FX_PAINTER.Config.Speed.Label"}}</label>
       <div class="form-fields">
-        <range-picker id="{{speedId}}" name="flags.{{moduleId}}.speed" value="{{speed}}" min="0" max="3" step="0.05"></range-picker>
+        <range-picker id="{{speedId}}" name="flags.{{moduleId}}.speed" value="{{speed}}" min="{{ranges.speed.min}}" max="{{ranges.speed.max}}" step="{{ranges.speed.step}}"></range-picker>
       </div>
       <p class="hint">{{localize "TILE_FX_PAINTER.Config.Speed.Hint"}}</p>
     </div>
@@ -47,7 +47,7 @@
     <div class="form-group">
       <label for="{{scaleId}}">{{localize "TILE_FX_PAINTER.Config.Scale.Label"}}</label>
       <div class="form-fields">
-        <range-picker id="{{scaleId}}" name="flags.{{moduleId}}.scale" value="{{scale}}" min="0.25" max="4" step="0.05"></range-picker>
+        <range-picker id="{{scaleId}}" name="flags.{{moduleId}}.scale" value="{{scale}}" min="{{ranges.scale.min}}" max="{{ranges.scale.max}}" step="{{ranges.scale.step}}"></range-picker>
       </div>
       <p class="hint">{{localize "TILE_FX_PAINTER.Config.Scale.Hint"}}</p>
     </div>

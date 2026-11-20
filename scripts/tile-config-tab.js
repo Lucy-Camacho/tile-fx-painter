@@ -1,6 +1,6 @@
 import { MODULE_ID } from "./main.js";
 import { EffectEditor } from "./effect-editor.js";
-import { EFFECTS, getEffectParams, getEffectSettings } from "./effects.js";
+import { EFFECTS, SETTING_RANGES, getEffectParams, getEffectSettings } from "./effects.js";
 import { getSheetDocument, resetSheetDocument } from "./compat.js";
 import { refreshTileFx } from "./tile-fx.js";
 
@@ -103,6 +103,7 @@ Hooks.on("renderTileConfig", async (app, element) => {
     speed: settings.speed,
     scaleId: `${idPrefix}-scale`,
     scale: settings.scale,
+    ranges: SETTING_RANGES,
     effectParams: getEffectParamGroups(tileData, settings.effect, idPrefix, openGroups),
     // The editor saves the mask in the tile flags, thus it needs no upload permission.
     canOpenEditor: app.document.canUserModify(game.user, "update"),
