@@ -164,11 +164,11 @@ export const EFFECTS = {
   }
 };
 
-/** The ranges of the settings that all effects share. The tile sheet and the API use them. */
+/** The ranges and defaults of the settings that all effects share. The tile sheet and the API use them. */
 export const SETTING_RANGES = {
-  intensity: { min: 0, max: 2, step: 0.05 },
-  speed: { min: 0, max: 3, step: 0.05 },
-  scale: { min: 0.25, max: 4, step: 0.05 }
+  intensity: { default: 1, min: 0, max: 2, step: 0.05 },
+  speed: { default: 1, min: 0, max: 3, step: 0.05 },
+  scale: { default: 1, min: 0.25, max: 4, step: 0.05 }
 };
 
 export const HEX_COLOR = /^#[0-9a-f]{6}$/i;
@@ -209,8 +209,8 @@ export function clampParams(effectId, values) {
  * @returns {number}
  */
 export function clampSetting(key, value) {
-  const { min, max } = SETTING_RANGES[key];
-  return Math.clamp(toNumber(value, 1), min, max);
+  const range = SETTING_RANGES[key];
+  return Math.clamp(toNumber(value, range.default), range.min, range.max);
 }
 
 /**
@@ -238,10 +238,10 @@ export function getEffectSettings(tileDocument) {
   return {
     enabled: flags.enabled === true,
     effect,
-    intensity: toNumber(flags.intensity, 1),
+    intensity: toNumber(flags.intensity, SETTING_RANGES.intensity.default),
     color,
-    speed: toNumber(flags.speed, 1),
-    scale: toNumber(flags.scale, 1),
+    speed: toNumber(flags.speed, SETTING_RANGES.speed.default),
+    scale: toNumber(flags.scale, SETTING_RANGES.scale.default),
     mask: flags.mask || null,
     params: getEffectParams(tileDocument, effect)
   };

@@ -321,7 +321,15 @@ Hooks.on("renderTileConfig", async (app, element) => {
   for (const fieldset of paramGroups) {
     fieldset.querySelector(".tile-fx-painter-reset-params").addEventListener("click", () => {
       // The value setter sends a change event that bubbles, thus the v14 preview also gets the defaults.
+      for (const key of ["intensity", "speed", "scale"]) getSharedInput(tab, key).value = SETTING_RANGES[key].default;
+      // An empty color is the default color of the effect.
+      getSharedInput(tab, "color").value = "";
       for (const picker of fieldset.querySelectorAll("range-picker")) picker.value = picker.dataset.default;
+      const select = fieldset.querySelector("[data-tile-fx-preset]");
+      if (select) {
+        select.value = "";
+        refreshDeleteButton(select);
+      }
     });
 
     // The toggle event does not bubble, thus each section needs its own listener.
