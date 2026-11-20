@@ -57,6 +57,26 @@
   <fieldset data-tile-fx-params="{{effectId}}" {{#unless active}}hidden disabled{{/unless}}>
     <legend>{{legend}}</legend>
 
+    <div class="form-group">
+      <label for="{{presetId}}">{{localize "TILE_FX_PAINTER.Config.Presets.Label"}}</label>
+      <div class="form-fields tile-fx-painter-preset-fields">
+        {{!-- No name, thus the form does not save the selection. --}}
+        <select id="{{presetId}}" data-tile-fx-preset>
+          <option value="">{{localize "TILE_FX_PAINTER.Config.Presets.Placeholder"}}</option>
+        </select>
+        {{#if @root.canEditPresets}}
+        <button type="button" class="tile-fx-painter-save-preset" data-tooltip="TILE_FX_PAINTER.Config.Presets.Save" aria-label="{{localize "TILE_FX_PAINTER.Config.Presets.Save"}}">
+          <i class="fa-solid fa-floppy-disk" inert></i>
+        </button>
+        {{!-- The JS enables the button when a preset is selected. --}}
+        <button type="button" class="tile-fx-painter-delete-preset" data-tooltip="TILE_FX_PAINTER.Config.Presets.Delete" aria-label="{{localize "TILE_FX_PAINTER.Config.Presets.Delete"}}" disabled>
+          <i class="fa-solid fa-trash" inert></i>
+        </button>
+        {{/if}}
+      </div>
+      <p class="hint">{{localize "TILE_FX_PAINTER.Config.Presets.Hint"}}</p>
+    </div>
+
     {{#each groups}}
     <details class="tile-fx-painter-param-group" data-param-group="{{groupId}}" {{#if open}}open{{/if}}>
       <summary>{{localize label}}</summary>

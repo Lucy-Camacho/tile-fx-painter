@@ -10,7 +10,23 @@
           "Medium": "Medium (1 mask pixel for each 2 scene pixels)",
           "Low": "Low (1 mask pixel for each 4 scene pixels)"
         }
+      },
+      "Presets": {
+        "Name": "Effect Presets",
+        "Label": "Manage Presets",
+        "Hint": "Export the effect presets of this world to a file, or import presets from a file."
       }
+    },
+    "PresetManager": {
+      "Title": "Effect Presets",
+      "Hint": "An import adds the presets of the file to this world. A preset with the same name is replaced.",
+      "Effect": "Effect",
+      "Count": "Presets",
+      "Export": "Export",
+      "Import": "Import",
+      "ExportEmpty": "This world has no presets to export.",
+      "Imported": "Import complete: {added} added, {replaced} replaced, {skipped} skipped.",
+      "ImportFailed": "The import failed. The file must be a Tile FX Painter preset export. See the console for the details."
     },
     "Tab": {
       "Label": "FX Painter"
@@ -72,6 +88,24 @@
           "Surface": "Surface",
           "UnderIce": "Under the Ice"
         }
+      },
+      "Presets": {
+        "Label": "Preset",
+        "Hint": "A preset sets the intensity, the color, the speed, the scale, and all settings of the effect. The presets are in the world settings. Click \"Update Tile\" to keep the values on the tile.",
+        "Placeholder": "Choose a preset",
+        "Save": "Save as Preset",
+        "SaveTitle": "Save Effect Preset",
+        "NameLabel": "Preset Name",
+        "ReplaceTitle": "Replace Preset",
+        "ReplaceContent": "The preset <strong>{name}</strong> exists already. Do you want to replace it?",
+        "Saved": "The preset \"{name}\" is saved.",
+        "SaveFailed": "The preset was not saved. See the console for the details.",
+        "InvalidName": "The preset name must have a letter or a digit.",
+        "Delete": "Delete Preset",
+        "DeleteTitle": "Delete Preset",
+        "DeleteContent": "Do you want to delete the preset <strong>{name}</strong>?",
+        "Deleted": "The preset \"{name}\" is deleted.",
+        "DeleteFailed": "The preset was not deleted. See the console for the details."
       },
       "OpenEditor": {
         "Label": "Open Mask Editor",

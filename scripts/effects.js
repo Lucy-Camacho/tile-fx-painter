@@ -189,19 +189,38 @@ export function getParamDefaults(effectId) {
 }
 
 /**
- * Read the param flags of one effect ("params.<effectId>.<key>").
  * A missing or invalid value becomes the default, and each value is clamped to its min and max.
- * Thus a value from a macro cannot break the shader.
+ * Thus a value from a macro or a preset cannot break the shader.
+ * @param {string} effectId
+ * @param {object} [values]  The raw params. Unknown keys are ignored.
+ * @returns {Record<string, number>}  An empty object for an unknown effect.
+ */
+export function clampParams(effectId, values) {
+  const schema = EFFECTS[effectId]?.params ?? {};
+  return Object.fromEntries(Object.entries(schema).map(([key, param]) => {
+    return [key, Math.clamp(toNumber(values?.[key], param.default), param.min, param.max)];
+  }));
+}
+
+/**
+ * getEffectSettings does not clamp these settings, thus a preset clamps with this function.
+ * @param {"intensity"|"speed"|"scale"} key
+ * @param {*} value
+ * @returns {number}
+ */
+export function clampSetting(key, value) {
+  const { min, max } = SETTING_RANGES[key];
+  return Math.clamp(toNumber(value, 1), min, max);
+}
+
+/**
+ * Read the param flags of one effect ("params.<effectId>.<key>"), with the defaults and the clamps of clampParams.
  * @param {TileDocument} tileDocument
  * @param {string} effectId
  * @returns {Record<string, number>}  An empty object for an unknown effect.
  */
 export function getEffectParams(tileDocument, effectId) {
-  const schema = EFFECTS[effectId]?.params ?? {};
-  const values = tileDocument.flags?.[MODULE_ID]?.params?.[effectId] ?? {};
-  return Object.fromEntries(Object.entries(schema).map(([key, param]) => {
-    return [key, Math.clamp(toNumber(values[key], param.default), param.min, param.max)];
-  }));
+  return clampParams(effectId, tileDocument.flags?.[MODULE_ID]?.params?.[effectId]);
 }
 
 /**

@@ -3,6 +3,9 @@ import { EffectEditor } from "./effect-editor.js";
 import { EFFECTS, SETTING_RANGES, getEffectParams, getEffectSettings } from "./effects.js";
 import { getSheetDocument, resetSheetDocument } from "./compat.js";
 import { refreshTileFx } from "./tile-fx.js";
+import {
+  PRESETS_CHANGED_HOOK, canEditPresets, deletePreset, findPreset, getPresetSlug, listPresets, savePreset
+} from "./presets.js";
 
 const TAB_ID = MODULE_ID;
 const TEMPLATE = `modules/${MODULE_ID}/templates/tile-config-tab.hbs`;
@@ -49,6 +52,7 @@ function getEffectParamGroups(tileData, activeEffect, idPrefix, openGroups) {
     }
     return {
       effectId,
+      presetId: `${idPrefix}-preset-${effectId}`,
       legend: game.i18n.format("TILE_FX_PAINTER.Config.Params.Legend", { effect: game.i18n.localize(effect.label) }),
       active: effectId === activeEffect,
       groups: Array.from(groups, ([groupId, fields]) => ({
@@ -58,6 +62,173 @@ function getEffectParamGroups(tileData, activeEffect, idPrefix, openGroups) {
         fields
       }))
     };
+  });
+}
+
+/**
+ * @param {HTMLSelectElement} select
+ * @param {string} effectId
+ * @param {string} [selected]  The slug of the preset to select.
+ */
+function fillPresetSelect(select, effectId, selected = "") {
+  const presets = listPresets(effectId);
+  select.replaceChildren(select.options[0], ...presets.map((preset) => new Option(preset.name, preset.slug)));
+  select.value = presets.some((preset) => preset.slug === selected) ? selected : "";
+  refreshDeleteButton(select);
+}
+
+/** The presets setting changed, on this client or on a different client. A deleted preset loses its selection. */
+function refreshPresetSelects() {
+  for (const select of document.querySelectorAll("[data-tile-fx-preset]")) {
+    const effectId = select.closest("[data-tile-fx-params]")?.dataset.tileFxParams;
+    if (effectId) fillPresetSelect(select, effectId, select.value);
+  }
+}
+
+Hooks.on(PRESETS_CHANGED_HOOK, refreshPresetSelects);
+
+/** A value set from code sends no change event, thus each value change calls this function. */
+function refreshDeleteButton(select) {
+  const button = select.parentElement.querySelector(".tile-fx-painter-delete-preset");
+  if (button) button.disabled = !select.value;
+}
+
+/**
+ * Ask for a confirmation and delete the selected preset.
+ * @param {HTMLFieldSetElement} fieldset
+ * @param {HTMLSelectElement} select
+ */
+async function onDeletePreset(fieldset, select) {
+  const effectId = fieldset.dataset.tileFxParams;
+  const slug = select.value;
+  if (!slug) return;
+  const name = select.selectedOptions[0].text;
+  const content = game.i18n.format("TILE_FX_PAINTER.Config.Presets.DeleteContent", {
+    name: foundry.utils.escapeHTML(name)
+  });
+  const confirmed = await foundry.applications.api.DialogV2.confirm({
+    window: { title: "TILE_FX_PAINTER.Config.Presets.DeleteTitle" },
+    content: `<p>${content}</p>`
+  });
+  if (!confirmed) return;
+
+  try {
+    await deletePreset(effectId, slug);
+    ui.notifications.info("TILE_FX_PAINTER.Config.Presets.Deleted", { localize: true, format: { name } });
+  } catch(err) {
+    console.error(err);
+    ui.notifications.error("TILE_FX_PAINTER.Config.Presets.DeleteFailed", { localize: true });
+  }
+}
+
+function getSharedInput(tab, key) {
+  return tab.querySelector(`[name="flags.${MODULE_ID}.${key}"]`);
+}
+
+/**
+ * The value setters send a change event that bubbles, the same as the reset button. Thus the live preview and the v14 preview document get the values.
+ * @param {HTMLElement} tab
+ * @param {HTMLFieldSetElement} fieldset  The params of the preset effect.
+ * @param {object} preset
+ */
+function applyPreset(tab, fieldset, preset) {
+  for (const key of ["intensity", "speed", "scale"]) getSharedInput(tab, key).value = preset[key];
+  getSharedInput(tab, "color").value = preset.color ?? "";
+  for (const picker of fieldset.querySelectorAll("range-picker")) {
+    const key = picker.name.split(".").pop();
+    if (Object.hasOwn(preset.params, key)) picker.value = preset.params[key];
+  }
+}
+
+/** The form values, not the document values, thus the preset has the unsubmitted changes. */
+function readPresetSettings(tab, fieldset) {
+  const params = {};
+  for (const picker of fieldset.querySelectorAll("range-picker")) params[picker.name.split(".").pop()] = picker.value;
+  return {
+    intensity: getSharedInput(tab, "intensity").value,
+    color: getSharedInput(tab, "color").value || null,
+    speed: getSharedInput(tab, "speed").value,
+    scale: getSharedInput(tab, "scale").value,
+    params
+  };
+}
+
+/**
+ * Ask for a name and save the current values as a preset of the effect.
+ * @param {HTMLElement} tab
+ * @param {HTMLFieldSetElement} fieldset
+ * @param {HTMLSelectElement} select
+ */
+async function onSavePreset(tab, fieldset, select) {
+  const { DialogV2 } = foundry.applications.api;
+  const effectId = fieldset.dataset.tileFxParams;
+  // The selected preset is the default name, thus a change to a preset needs no new typing.
+  const input = foundry.applications.fields.createTextInput({
+    name: "name", value: select.selectedOptions[0]?.value ? select.selectedOptions[0].text : ""
+  });
+  input.autofocus = true;
+  const group = foundry.applications.fields.createFormGroup({
+    label: "TILE_FX_PAINTER.Config.Presets.NameLabel", input, localize: true
+  });
+  const result = await DialogV2.input({
+    window: { title: "TILE_FX_PAINTER.Config.Presets.SaveTitle" },
+    content: group.outerHTML,
+    ok: { label: "TILE_FX_PAINTER.Config.Presets.Save", icon: "fa-solid fa-floppy-disk" }
+  });
+  const name = String(result?.name ?? "").trim();
+  if (!name) return;
+  if (!getPresetSlug(name)) {
+    ui.notifications.warn("TILE_FX_PAINTER.Config.Presets.InvalidName", { localize: true });
+    return;
+  }
+
+  const existing = findPreset(effectId, name);
+  if (existing) {
+    const content = game.i18n.format("TILE_FX_PAINTER.Config.Presets.ReplaceContent", {
+      name: foundry.utils.escapeHTML(existing.name)
+    });
+    const replace = await DialogV2.confirm({
+      window: { title: "TILE_FX_PAINTER.Config.Presets.ReplaceTitle" },
+      content: `<p>${content}</p>`
+    });
+    if (!replace) return;
+  }
+
+  try {
+    const preset = await savePreset(effectId, name, readPresetSettings(tab, fieldset));
+    ui.notifications.info("TILE_FX_PAINTER.Config.Presets.Saved", { localize: true, format: { name: preset.name } });
+    // The setting hook already filled the list. It keeps the old selection, thus select the new preset here.
+    fillPresetSelect(select, effectId, preset.slug);
+  } catch(err) {
+    console.error(err);
+    ui.notifications.error("TILE_FX_PAINTER.Config.Presets.SaveFailed", { localize: true });
+  }
+}
+
+/**
+ * Fill the preset select of an effect and add its listeners.
+ * @param {HTMLElement} tab
+ * @param {HTMLFieldSetElement} fieldset
+ */
+function activatePresets(tab, fieldset) {
+  const select = fieldset.querySelector("[data-tile-fx-preset]");
+  if (!select) return;
+  const effectId = fieldset.dataset.tileFxParams;
+  fillPresetSelect(select, effectId);
+
+  select.addEventListener("change", () => {
+    refreshDeleteButton(select);
+    const slug = select.value;
+    if (!slug) return;
+    const preset = listPresets(effectId).find((p) => p.slug === slug);
+    if (preset) applyPreset(tab, fieldset, preset);
+  });
+
+  fieldset.querySelector(".tile-fx-painter-save-preset")?.addEventListener("click", () => {
+    onSavePreset(tab, fieldset, select);
+  });
+  fieldset.querySelector(".tile-fx-painter-delete-preset")?.addEventListener("click", () => {
+    onDeletePreset(fieldset, select);
   });
 }
 
@@ -105,6 +276,7 @@ Hooks.on("renderTileConfig", async (app, element) => {
     scale: settings.scale,
     ranges: SETTING_RANGES,
     effectParams: getEffectParamGroups(tileData, settings.effect, idPrefix, openGroups),
+    canEditPresets: canEditPresets(),
     // The editor saves the mask in the tile flags, thus it needs no upload permission.
     canOpenEditor: app.document.canUserModify(game.user, "update"),
     // "Create Tile" closes the sheet, thus the button stays disabled until the user opens the sheet of the created tile.
@@ -165,6 +337,8 @@ Hooks.on("renderTileConfig", async (app, element) => {
 
   const tabs = element.querySelectorAll(`.tab[data-group="${group}"]`);
   tabs[tabs.length - 1].after(tab);
+
+  for (const fieldset of paramGroups) activatePresets(tab, fieldset);
 
   app.setPosition({ height: "auto" });
 });

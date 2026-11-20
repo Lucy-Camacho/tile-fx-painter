@@ -11,6 +11,33 @@
   width: 100%;
 }
 
+/* The core styles give a button in a form group the full width. The save and delete buttons must stay next to the select. */
+.tile-fx-painter .tile-fx-painter-preset-fields button {
+  flex: none;
+  width: auto;
+}
+
+.tile-fx-painter-preset-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.tile-fx-painter-preset-manager table {
+  margin: 0;
+}
+
+.tile-fx-painter-preset-manager td:last-child,
+.tile-fx-painter-preset-manager th:last-child {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.tile-fx-painter-preset-manager-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
 .tile-fx-painter-param-group > summary {
   font-weight: bold;
   cursor: var(--cursor-pointer);
