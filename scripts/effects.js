@@ -50,8 +50,6 @@ export const EFFECTS = {
       filmAmount: { default: 0.35, min: 0, max: 1, step: 0.05, group: "film" },
       // The quantity of background brightness that stays in the liquid.
       darken: { default: 0.45, min: 0, max: 1, step: 0.05, group: "surface" },
-      // The height of the small surface ripples.
-      ripple: { default: 0.06, min: 0, max: 0.2, step: 0.01, group: "surface" },
       // The maximum shift of the map under the liquid, in grid squares at pattern scale 1.
       refractAmount: { default: 0.05, min: 0, max: 0.2, step: 0.01, group: "surface" },
       // The brightness of the wet highlights.
@@ -66,8 +64,6 @@ export const EFFECTS = {
       moltenAmount: { default: 0.6, min: 0, max: 1, step: 0.05, group: "moltenRock" },
       // The position on the color ramp of the molten rock. A higher value gives more yellow and white.
       heatLevel: { default: 1, min: 0, max: 2, step: 0.05, group: "moltenRock" },
-      // The bend of the molten veins. The crust does not bend. The maximum keeps the veins from a visible stretch.
-      warpAmount: { default: 1, min: 0, max: 1.5, step: 0.05, group: "moltenRock" },
       // The size of the light past the mask, in grid squares at pattern scale 1. 0 removes the light.
       heatRadius: { default: 0.4, min: 0, max: 2, step: 0.05, group: "moltenRock" },
       // The quantity of map brightness in the crust. 0 gives a black crust.

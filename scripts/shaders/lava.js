@@ -33,7 +33,6 @@ export class LavaShader extends TileFxShader {
     uniform float moltenAmount;
     uniform float heatLevel;
     uniform float crustBrightness;
-    uniform float warpAmount;
     uniform float detailAmount;
     uniform float reliefAmount;
     uniform float pulseAmount;
@@ -64,8 +63,9 @@ export class LavaShader extends TileFxShader {
     const float MOLTEN_SPEED = 0.08;    // The speed of the vein layers, in noise units each second.
     const float SWIRL_FREQ = 0.45;       // The frequency of the warp noise, relative to the veins.
     // The warp bends the veins. The slope of the warp must stay small, because a large slope stretches the veins.
-    // The maximum slope of the noise is 1.5. Thus the warp changes a distance by at most 1.5 * SWIRL_GAIN * SWIRL_FREQ * Swirl.
+    // The maximum slope of the noise is 1.5. Thus the warp changes a distance by at most 1.5 * SWIRL_GAIN * SWIRL_FREQ * SWIRL_AMOUNT.
     const float SWIRL_GAIN = 0.7;
+    const float SWIRL_AMOUNT = 1.5;     // The highest value that does not stretch the veins visibly.
     const float SWIRL_SPEED = 0.05;     // The change of the warp, in noise units each second.
     const float VEIN_SHARP = 5.0;       // A higher value gives thinner veins.
     const float GLOW_SHARP = 2.0;       // A higher value gives a thinner soft light around the veins.
@@ -140,7 +140,7 @@ export class LavaShader extends TileFxShader {
     vec2 moltenPattern(vec2 p, float t) {
       vec2 swirlPos = p * SWIRL_FREQ;
       vec2 swirl = vec2(noise(swirlPos + vec2(0.0, t * SWIRL_SPEED)), noise(swirlPos + vec2(5.2, 1.3) - vec2(t * SWIRL_SPEED, 0.0))) - 0.5;
-      vec2 q = p + (swirl * warpAmount * SWIRL_GAIN);
+      vec2 q = p + (swirl * SWIRL_AMOUNT * SWIRL_GAIN);
 
       float crease = abs((noise(q + (vec2(0.8, 0.6) * t * MOLTEN_SPEED)) * 2.0) - 1.0) * 0.62;
       q = (OCTAVE_TURN * q * 2.03) + 3.1;

@@ -196,7 +196,6 @@ Default color: `#1c2230`. The color is the dark color of the liquid, under the r
 | `bands` | 2 | 0.5 | 5 | The number of rainbow cycles in the film. |
 | `filmAmount` | 0.35 | 0 | 1 | The quantity of rainbow color. 0 removes the rainbow. |
 | `darken` | 0.45 | 0 | 1 | The quantity of map brightness that stays in the liquid. |
-| `ripple` | 0.06 | 0 | 0.2 | The height of the small ripples. |
 | `refractAmount` | 0.05 | 0 | 0.2 | The maximum shift of the map under the liquid, in pattern units. |
 | `specularAmount` | 0.7 | 0 | 1.5 | The brightness of the wet highlights. |
 
@@ -208,7 +207,6 @@ Default color: `#e8400a`.
 | --- | --- | --- | --- | --- |
 | `moltenAmount` | 0.6 | 0 | 1 | The part of the surface that is molten. A low value gives mostly crust. |
 | `heatLevel` | 1 | 0 | 2 | The heat of the molten color. A higher value gives more yellow and white. |
-| `warpAmount` | 1 | 0 | 1.5 | The bend of the hot veins. The crust does not bend. |
 | `heatRadius` | 0.4 | 0 | 2 | The size of the light around the painted area, in pattern units. 0 removes the light. |
 | `crustBrightness` | 0.1 | 0 | 1 | The quantity of map brightness in the crust. 0 gives a black crust. |
 | `detailAmount` | 1 | 0 | 2 | The roughness of the crust edges and the quantity of small veins. |

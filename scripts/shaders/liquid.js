@@ -24,7 +24,6 @@ export class LiquidShader extends TileFxShader {
     uniform float bands;              // The number of rainbow cycles from the thinnest to the thickest film.
     uniform float filmAmount;         // The quantity of rainbow color on the liquid. The value 0 removes the rainbow.
     uniform float darken;             // The quantity of background brightness that stays in the liquid.
-    uniform float ripple;             // The height of the small surface ripples.
     uniform float refractAmount;      // The maximum shift of the map, in grid squares at pattern scale 1.
     uniform float specularAmount;     // The brightness of the wet highlights.
 
@@ -34,6 +33,8 @@ export class LiquidShader extends TileFxShader {
     const float FLOW = 0.15;
     // The number of small surface ripples in one swirl unit.
     const float RIPPLE_FREQ = 5.0;
+    // The height of the small surface ripples.
+    const float RIPPLE_HEIGHT = 0.2;
     // The tilt of the surface normal for a height change. A higher value gives a rougher liquid.
     const float BUMP = 0.15;
     // The distance of the height samples for the normal, in swirl units.
@@ -48,7 +49,7 @@ export class LiquidShader extends TileFxShader {
 
     // The surface height: the film swirls plus small ripples that move faster than the film.
     float surface(vec2 pos, float t, float film) {
-      return film + (ripple * noise((pos * RIPPLE_FREQ) + vec2(t * 3.0, t * 2.0)));
+      return film + (RIPPLE_HEIGHT * noise((pos * RIPPLE_FREQ) + vec2(t * 3.0, t * 2.0)));
     }
 
     vec4 _main() {

@@ -169,10 +169,6 @@
           "Label": "Liquid Brightness",
           "Hint": "The quantity of map brightness that stays in the liquid. A higher value shows more of the map."
         },
-        "Ripple": {
-          "Label": "Ripples",
-          "Hint": "The height of the small ripples on the surface."
-        },
         "RefractAmount": {
           "Label": "Distortion",
           "Hint": "The maximum shift of the map under the liquid, in grid squares at Pattern Scale 1."
@@ -194,10 +190,6 @@
         "CrustBrightness": {
           "Label": "Crust Brightness",
           "Hint": "The quantity of map brightness in the crust. The value 0 gives a black crust."
-        },
-        "WarpAmount": {
-          "Label": "Swirl",
-          "Hint": "The bend of the hot veins. The crust does not bend. The value 0 gives veins with no bend."
         },
         "DetailAmount": {
           "Label": "Surface Detail",
