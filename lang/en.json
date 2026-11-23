@@ -42,6 +42,26 @@
         "OilSlick": "Oil Slick",
         "TarPit": "Tar Pit",
         "ToxicSludge": "Toxic Sludge"
+      },
+      "Lava": {
+        "FlowingLava": "Flowing Lava",
+        "CoolingCrust": "Cooling Crust",
+        "MagmaPool": "Magma Pool"
+      },
+      "Water": {
+        "CalmPond": "Calm Pond",
+        "RiverCurrent": "River Current",
+        "Swamp": "Swamp"
+      },
+      "Frost": {
+        "FrozenLake": "Frozen Lake",
+        "ThinRime": "Thin Rime",
+        "GlacierIce": "Glacier Ice"
+      },
+      "AstralVoid": {
+        "DeepSpace": "Deep Space",
+        "NebulaRift": "Nebula Rift",
+        "EldritchPortal": "Eldritch Portal"
       }
     },
     "Tab": {
