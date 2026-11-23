@@ -60,8 +60,8 @@
     <div class="form-group">
       <label for="{{presetId}}">{{localize "TILE_FX_PAINTER.Config.Presets.Label"}}</label>
       <div class="form-fields tile-fx-painter-preset-fields">
-        {{!-- No name, thus the form does not save the selection. --}}
-        <select id="{{presetId}}" data-tile-fx-preset>
+        {{!-- The JS adds the options and the saved selection, because the presets can change while the sheet is open. --}}
+        <select id="{{presetId}}" name="{{presetName}}" data-tile-fx-preset data-selected="{{presetSlug}}">
           <option value="">{{localize "TILE_FX_PAINTER.Config.Presets.Placeholder"}}</option>
         </select>
         {{#if @root.canEditPresets}}

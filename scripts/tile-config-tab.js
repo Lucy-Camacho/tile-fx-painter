@@ -23,6 +23,9 @@ const openParamGroups = new WeakMap();
 // The forms with the live preview listener. The sheet keeps its form across renders, and makes a new form after a close.
 const previewForms = new WeakSet();
 
+// The value setters of the pickers send their change events synchronously, thus this flag marks the events of a preset.
+let applyingPreset = false;
+
 /**
  * Get the template data of the param groups of each effect.
  * The tab has the groups of all effects, because the sheet does not render again when the dropdown changes.
@@ -33,6 +36,7 @@ const previewForms = new WeakSet();
  * @returns {object[]}
  */
 function getEffectParamGroups(tileData, activeEffect, idPrefix, openGroups) {
+  const savedPresets = tileData.flags[MODULE_ID]?.presets ?? {};
   return Object.entries(EFFECTS).map(([effectId, effect]) => {
     const values = getEffectParams(tileData, effectId);
     const keyPrefix = `TILE_FX_PAINTER.Params.${effectId.capitalize()}`;
@@ -54,6 +58,9 @@ function getEffectParamGroups(tileData, activeEffect, idPrefix, openGroups) {
     return {
       effectId,
       presetId: `${idPrefix}-preset-${effectId}`,
+      presetName: `flags.${MODULE_ID}.presets.${effectId}`,
+      // fillPresetSelect ignores a slug that is not a preset now, for example a deleted preset.
+      presetSlug: typeof savedPresets[effectId] === "string" ? savedPresets[effectId] : "",
       legend: game.i18n.format("TILE_FX_PAINTER.Config.Params.Legend", { effect: game.i18n.localize(effect.label) }),
       active: effectId === activeEffect,
       groups: Array.from(groups, ([groupId, fields]) => ({
@@ -135,6 +142,15 @@ function getSharedInput(tab, key) {
   return tab.querySelector(`[name="flags.${MODULE_ID}.${key}"]`);
 }
 
+/** The color picker reads its placeholder attribute only when it connects, thus also set the placeholder of its text input. */
+function setColorPlaceholder(tab, effectId) {
+  const picker = getSharedInput(tab, "color");
+  const color = EFFECTS[effectId]?.defaultColor ?? "";
+  picker.setAttribute("placeholder", color);
+  const text = picker.querySelector('input[type="text"]');
+  if (text) text.placeholder = color;
+}
+
 /**
  * The value setters send a change event that bubbles, the same as the reset button. Thus the live preview and the v14 preview document get the values.
  * @param {HTMLElement} tab
@@ -142,12 +158,52 @@ function getSharedInput(tab, key) {
  * @param {object} preset
  */
 function applyPreset(tab, fieldset, preset) {
-  for (const key of ["intensity", "speed", "scale"]) getSharedInput(tab, key).value = preset[key];
-  getSharedInput(tab, "color").value = preset.color ?? "";
-  for (const picker of fieldset.querySelectorAll("range-picker")) {
-    const key = picker.name.split(".").pop();
-    if (Object.hasOwn(preset.params, key)) picker.value = preset.params[key];
+  applyingPreset = true;
+  try {
+    for (const key of ["intensity", "speed", "scale"]) getSharedInput(tab, key).value = preset[key];
+    getSharedInput(tab, "color").value = preset.color ?? "";
+    for (const picker of fieldset.querySelectorAll("range-picker")) {
+      const key = picker.name.split(".").pop();
+      if (Object.hasOwn(preset.params, key)) picker.value = preset.params[key];
+    }
+  } finally {
+    applyingPreset = false;
   }
+}
+
+/**
+ * A user change to a value makes the values different from the selected preset, thus clear the selection.
+ * The tab gets the event before the form, thus the v14 preview gets the cleared selection.
+ * @param {HTMLElement} tab
+ * @param {Event} event
+ */
+function onValueChange(tab, event) {
+  if (applyingPreset || !event.target.matches("range-picker, color-picker")) return;
+  // The shared inputs are not in an effect fieldset. They change the values of the selected effect.
+  const fieldset = event.target.closest("[data-tile-fx-params]") ?? tab.querySelector("[data-tile-fx-params]:not([disabled])");
+  if (fieldset) clearPresetSelection(fieldset);
+}
+
+function clearPresetSelection(fieldset) {
+  const select = fieldset.querySelector("[data-tile-fx-preset]");
+  if (!select?.value) return;
+  select.value = "";
+  refreshDeleteButton(select);
+}
+
+/**
+ * Set the shared settings and the params of an effect to the defaults, and clear its preset selection.
+ * @param {HTMLElement} tab
+ * @param {HTMLFieldSetElement} fieldset
+ */
+function resetEffectValues(tab, fieldset) {
+  // First, because the select sends no change event. The change events of the pickers send it to the v14 preview.
+  clearPresetSelection(fieldset);
+  // The value setter sends a change event that bubbles, thus the v14 preview also gets the defaults.
+  for (const key of ["intensity", "speed", "scale"]) getSharedInput(tab, key).value = SETTING_RANGES[key].default;
+  // An empty color is the default color of the effect.
+  getSharedInput(tab, "color").value = "";
+  for (const picker of fieldset.querySelectorAll("range-picker")) picker.value = picker.dataset.default;
 }
 
 /** The form values, not the document values, thus the preset has the unsubmitted changes. */
@@ -224,7 +280,7 @@ function activatePresets(tab, fieldset) {
   const select = fieldset.querySelector("[data-tile-fx-preset]");
   if (!select) return;
   const effectId = fieldset.dataset.tileFxParams;
-  fillPresetSelect(select, effectId);
+  fillPresetSelect(select, effectId, select.dataset.selected);
 
   select.addEventListener("change", () => {
     refreshDeleteButton(select);
@@ -279,7 +335,8 @@ Hooks.on("renderTileConfig", async (app, element) => {
     // Show the saved value, not the default. An empty field keeps the default color, also after an effect change.
     colorId: `${idPrefix}-color`,
     color: flags.color ?? "",
-    colorPlaceholder: settings.color ?? "",
+    // Not settings.color: it is the saved color, thus an empty field shows the saved color.
+    colorPlaceholder: EFFECTS[settings.effect]?.defaultColor ?? "",
     speedId: `${idPrefix}-speed`,
     speed: settings.speed,
     scaleId: `${idPrefix}-scale`,
@@ -315,31 +372,28 @@ Hooks.on("renderTileConfig", async (app, element) => {
 
   // Each render makes a new tab element, thus the listeners must be added again.
   tab.querySelector(".tile-fx-painter-open-editor")?.addEventListener("click", () => EffectEditor.open(app.document));
+  tab.addEventListener("change", (event) => onValueChange(tab, event));
 
   // The form data skips a disabled fieldset, thus the sheet saves only the params of the selected effect.
   // This listener runs before the listener on the form, thus the v14 preview gets the params of the new effect.
   const paramGroups = tab.querySelectorAll("[data-tile-fx-params]");
   tab.querySelector(`[name="flags.${MODULE_ID}.shader"]`).addEventListener("change", (event) => {
+    // Before the reset, because the color setter shows the placeholder color for an empty value.
+    setColorPlaceholder(tab, event.currentTarget.value);
     for (const fieldset of paramGroups) {
       const selected = fieldset.dataset.tileFxParams === event.currentTarget.value;
       fieldset.hidden = !selected;
       fieldset.disabled = !selected;
+      // The values of the old effect stay in the shared inputs, thus no preset selection is correct after a change.
+      clearPresetSelection(fieldset);
+      if (selected) resetEffectValues(tab, fieldset);
     }
     app.setPosition({ height: "auto" });
   });
 
   for (const fieldset of paramGroups) {
     fieldset.querySelector(".tile-fx-painter-reset-params").addEventListener("click", () => {
-      // The value setter sends a change event that bubbles, thus the v14 preview also gets the defaults.
-      for (const key of ["intensity", "speed", "scale"]) getSharedInput(tab, key).value = SETTING_RANGES[key].default;
-      // An empty color is the default color of the effect.
-      getSharedInput(tab, "color").value = "";
-      for (const picker of fieldset.querySelectorAll("range-picker")) picker.value = picker.dataset.default;
-      const select = fieldset.querySelector("[data-tile-fx-preset]");
-      if (select) {
-        select.value = "";
-        refreshDeleteButton(select);
-      }
+      resetEffectValues(tab, fieldset);
     });
 
     // The toggle event does not bubble, thus each section needs its own listener.
