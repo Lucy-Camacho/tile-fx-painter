@@ -91,7 +91,7 @@ function fillPresetSelect(select, effectId, selected = "") {
   }
   select.replaceChildren(select.options[0], ...groups);
   select.value = presets.some((preset) => preset.slug === selected) ? selected : "";
-  refreshDeleteButton(select);
+  refreshPresetButtons(select);
 }
 
 /** The presets setting changed, on this client or on a different client. A deleted preset loses its selection. */
@@ -105,9 +105,12 @@ function refreshPresetSelects() {
 Hooks.on(PRESETS_CHANGED_HOOK, refreshPresetSelects);
 
 /** A value set from code sends no change event, thus each value change calls this function. */
-function refreshDeleteButton(select) {
-  const button = select.parentElement.querySelector(".tile-fx-painter-delete-preset");
-  if (button) button.disabled = !select.value || isDefaultPresetSlug(select.value);
+function refreshPresetButtons(select) {
+  const isDefault = isDefaultPresetSlug(select.value);
+  const saveButton = select.parentElement.querySelector(".tile-fx-painter-save-preset");
+  if (saveButton) saveButton.disabled = isDefault;
+  const deleteButton = select.parentElement.querySelector(".tile-fx-painter-delete-preset");
+  if (deleteButton) deleteButton.disabled = !select.value || isDefault;
 }
 
 /**
@@ -188,7 +191,7 @@ function clearPresetSelection(fieldset) {
   const select = fieldset.querySelector("[data-tile-fx-preset]");
   if (!select?.value) return;
   select.value = "";
-  refreshDeleteButton(select);
+  refreshPresetButtons(select);
 }
 
 /**
@@ -283,7 +286,7 @@ function activatePresets(tab, fieldset) {
   fillPresetSelect(select, effectId, select.dataset.selected);
 
   select.addEventListener("change", () => {
-    refreshDeleteButton(select);
+    refreshPresetButtons(select);
     const slug = select.value;
     if (!slug) return;
     const preset = listPresets(effectId).find((p) => p.slug === slug);
