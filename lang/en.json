@@ -32,6 +32,11 @@
         "Torchlight": "Torchlight",
         "ArcaneRune": "Arcane Rune",
         "EmberCoals": "Ember Coals"
+      },
+      "Metallic": {
+        "PolishedGold": "Polished Gold",
+        "BrushedSteel": "Brushed Steel",
+        "TarnishedBronze": "Tarnished Bronze"
       }
     },
     "Tab": {
