@@ -37,6 +37,11 @@
         "PolishedGold": "Polished Gold",
         "BrushedSteel": "Brushed Steel",
         "TarnishedBronze": "Tarnished Bronze"
+      },
+      "Liquid": {
+        "OilSlick": "Oil Slick",
+        "TarPit": "Tar Pit",
+        "ToxicSludge": "Toxic Sludge"
       }
     },
     "Tab": {

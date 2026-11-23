@@ -50,5 +50,28 @@ export const DEFAULT_PRESETS = {
       scale: 1,
       params: { smoothness: 0.2, grainAmount: 0.8, shadowTone: 0.3, shineBand: 0.5, cameraMotion: 0.6 }
     }
+  },
+  liquid: {
+    oilSlick: {
+      intensity: 1,
+      color: "#1c2230",
+      speed: 1,
+      scale: 1,
+      params: { warpAmount: 4, bands: 2, filmAmount: 0.45, darken: 0.4, refractAmount: 0.05, specularAmount: 0.8 }
+    },
+    tarPit: {
+      intensity: 1,
+      color: "#0d0b0a",
+      speed: 0.4,
+      scale: 1,
+      params: { warpAmount: 2, bands: 1, filmAmount: 0.1, darken: 0.15, refractAmount: 0.02, specularAmount: 0.5 }
+    },
+    toxicSludge: {
+      intensity: 1,
+      color: "#2f5a12",
+      speed: 0.8,
+      scale: 1,
+      params: { warpAmount: 5, bands: 3, filmAmount: 0.3, darken: 0.5, refractAmount: 0.08, specularAmount: 0.9 }
+    }
   }
 };
