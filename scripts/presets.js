@@ -1,5 +1,6 @@
 import { MODULE_ID } from "./main.js";
 import { EFFECTS, HEX_COLOR, clampParams, clampSetting } from "./effects.js";
+import { DEFAULT_PRESETS } from "./default-presets.js";
 
 /**
  * The effect presets, in a hidden world setting: { <effectId>: { <slug>: preset } }.
@@ -12,6 +13,9 @@ const PRESETS_SETTING = "presets";
 export const PRESETS_CHANGED_HOOK = `${MODULE_ID}.presetsChanged`;
 
 const EXPORT_FORMAT_VERSION = 1;
+
+// A strict slugify removes ":", thus a world preset slug cannot be the same as a default preset slug.
+const DEFAULT_SLUG_PREFIX = "default:";
 
 Hooks.once("init", () => {
   game.settings.register(MODULE_ID, PRESETS_SETTING, {
@@ -76,30 +80,68 @@ function sanitizePreset(effectId, data) {
 }
 
 /**
- * Get the presets of an effect, sorted by name. A bad entry is skipped.
- * @param {string} effectId
- * @returns {object[]}  Each preset has the values of sanitizePreset and its "slug".
+ * @param {string} slug
+ * @returns {boolean}  True for a default preset. No user can delete a default preset.
  */
-export function listPresets(effectId) {
-  if (!Object.hasOwn(EFFECTS, effectId)) return [];
-  const entries = getStoredPresets()[effectId];
-  if (!isObject(entries)) return [];
-  const presets = [];
-  for (const [slug, data] of Object.entries(entries)) {
-    const preset = sanitizePreset(effectId, data);
-    if (preset) presets.push({ ...preset, slug });
-  }
+export function isDefaultPresetSlug(slug) {
+  return String(slug ?? "").startsWith(DEFAULT_SLUG_PREFIX);
+}
+
+function sortByName(presets) {
   return presets.sort((a, b) => a.name.localeCompare(b.name, game.i18n.lang));
 }
 
 /**
  * @param {string} effectId
+ * @returns {object[]}  The default presets of the effect, sorted by name, with "builtIn" true.
+ */
+function listDefaultPresets(effectId) {
+  const entries = DEFAULT_PRESETS[effectId];
+  if (!isObject(entries)) return [];
+  const presets = [];
+  for (const [key, data] of Object.entries(entries)) {
+    const name = game.i18n.localize(`TILE_FX_PAINTER.DefaultPresets.${effectId.capitalize()}.${key.capitalize()}`);
+    const preset = sanitizePreset(effectId, { ...data, name, effect: effectId });
+    if (preset) presets.push({ ...preset, slug: `${DEFAULT_SLUG_PREFIX}${key}`, builtIn: true });
+  }
+  return sortByName(presets);
+}
+
+/**
+ * @param {string} effectId
+ * @returns {object[]}  The presets of the world setting, sorted by name, with "builtIn" false. A bad entry is skipped.
+ */
+function listWorldPresets(effectId) {
+  const entries = getStoredPresets()[effectId];
+  if (!isObject(entries)) return [];
+  const presets = [];
+  for (const [slug, data] of Object.entries(entries)) {
+    const preset = sanitizePreset(effectId, data);
+    if (preset) presets.push({ ...preset, slug, builtIn: false });
+  }
+  return sortByName(presets);
+}
+
+/**
+ * Get the presets of an effect: the default presets first, then the world presets.
+ * @param {string} effectId
+ * @returns {object[]}  Each preset has the values of sanitizePreset, its "slug", and "builtIn".
+ */
+export function listPresets(effectId) {
+  if (!Object.hasOwn(EFFECTS, effectId)) return [];
+  return [...listDefaultPresets(effectId), ...listWorldPresets(effectId)];
+}
+
+/**
+ * Only the world presets, because a save cannot replace a default preset.
+ * @param {string} effectId
  * @param {string} name
- * @returns {object|undefined}  The preset with the same slug as this name.
+ * @returns {object|undefined}  The world preset with the same slug as this name.
  */
 export function findPreset(effectId, name) {
+  if (!Object.hasOwn(EFFECTS, effectId)) return undefined;
   const slug = getPresetSlug(name);
-  return listPresets(effectId).find((preset) => preset.slug === slug);
+  return listWorldPresets(effectId).find((preset) => preset.slug === slug);
 }
 
 /**
@@ -126,6 +168,8 @@ export async function savePreset(effectId, name, settings) {
  * @returns {Promise<void>}
  */
 export async function deletePreset(effectId, slug) {
+  // The setting cannot have this slug. The error stops a macro from a silent no-op.
+  if (isDefaultPresetSlug(slug)) throw new Error(`${MODULE_ID} | The default preset "${slug}" cannot be deleted.`);
   const presets = getStoredPresets();
   if (!isObject(presets[effectId]) || !Object.hasOwn(presets[effectId], slug)) return;
   delete presets[effectId][slug];
@@ -134,24 +178,24 @@ export async function deletePreset(effectId, slug) {
 }
 
 /**
- * The number of valid presets of each effect.
+ * The number of valid world presets of each effect.
  * @returns {Record<string, number>}
  */
 export function countPresets() {
-  return Object.fromEntries(Object.keys(EFFECTS).map((effectId) => [effectId, listPresets(effectId).length]));
+  return Object.fromEntries(Object.keys(EFFECTS).map((effectId) => [effectId, listWorldPresets(effectId).length]));
 }
 
 /**
- * Download all valid presets as a JSON file.
+ * Download all valid world presets as a JSON file. Not the default presets, because each world has them.
  * @returns {number}  The number of exported presets. The download does not start for 0.
  */
 export function exportPresets() {
   const presets = {};
   let count = 0;
   for (const effectId of Object.keys(EFFECTS)) {
-    const list = listPresets(effectId);
+    const list = listWorldPresets(effectId);
     if (!list.length) continue;
-    presets[effectId] = Object.fromEntries(list.map(({ slug, ...preset }) => [slug, preset]));
+    presets[effectId] = Object.fromEntries(list.map(({ slug, builtIn, ...preset }) => [slug, preset]));
     count += list.length;
   }
   if (!count) return 0;

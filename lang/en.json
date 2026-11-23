@@ -18,7 +18,7 @@
     },
     "PresetManager": {
       "Title": "Effect Presets",
-      "Hint": "An import adds the presets of the file to this world. A preset with the same name is replaced.",
+      "Hint": "An import adds the presets of the file to this world. A preset with the same name is replaced. The export and the counts do not include the default presets of the module.",
       "Effect": "Effect",
       "Count": "Presets",
       "Export": "Export",
@@ -26,6 +26,13 @@
       "ExportEmpty": "This world has no presets to export.",
       "Imported": "Import complete: {added} added, {replaced} replaced, {skipped} skipped.",
       "ImportFailed": "The import failed. The file must be a Tile FX Painter preset export. See the console for the details."
+    },
+    "DefaultPresets": {
+      "Glow": {
+        "Torchlight": "Torchlight",
+        "ArcaneRune": "Arcane Rune",
+        "EmberCoals": "Ember Coals"
+      }
     },
     "Tab": {
       "Label": "FX Painter"
@@ -92,6 +99,10 @@
         "Label": "Preset",
         "Hint": "A preset sets the intensity, the color, the speed, the scale, and all settings of the effect. The presets are in the world settings. Click \"Update Tile\" to keep the values on the tile.",
         "Placeholder": "Choose a preset",
+        "Groups": {
+          "Default": "Default Presets",
+          "World": "World Presets"
+        },
         "Save": "Save as Preset",
         "SaveTitle": "Save Effect Preset",
         "NameLabel": "Preset Name",

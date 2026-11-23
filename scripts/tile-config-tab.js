@@ -4,7 +4,8 @@ import { EFFECTS, SETTING_RANGES, getEffectParams, getEffectSettings } from "./e
 import { getSheetDocument, resetSheetDocument } from "./compat.js";
 import { refreshTileFx } from "./tile-fx.js";
 import {
-  PRESETS_CHANGED_HOOK, canEditPresets, deletePreset, findPreset, getPresetSlug, listPresets, savePreset
+  PRESETS_CHANGED_HOOK, canEditPresets, deletePreset, findPreset, getPresetSlug, isDefaultPresetSlug, listPresets,
+  savePreset
 } from "./presets.js";
 
 const TAB_ID = MODULE_ID;
@@ -72,7 +73,16 @@ function getEffectParamGroups(tileData, activeEffect, idPrefix, openGroups) {
  */
 function fillPresetSelect(select, effectId, selected = "") {
   const presets = listPresets(effectId);
-  select.replaceChildren(select.options[0], ...presets.map((preset) => new Option(preset.name, preset.slug)));
+  const groups = [];
+  for (const [builtIn, labelKey] of [[true, "Default"], [false, "World"]]) {
+    const options = presets.filter((preset) => preset.builtIn === builtIn).map((preset) => new Option(preset.name, preset.slug));
+    if (!options.length) continue;
+    const group = document.createElement("optgroup");
+    group.label = game.i18n.localize(`TILE_FX_PAINTER.Config.Presets.Groups.${labelKey}`);
+    group.append(...options);
+    groups.push(group);
+  }
+  select.replaceChildren(select.options[0], ...groups);
   select.value = presets.some((preset) => preset.slug === selected) ? selected : "";
   refreshDeleteButton(select);
 }
@@ -90,7 +100,7 @@ Hooks.on(PRESETS_CHANGED_HOOK, refreshPresetSelects);
 /** A value set from code sends no change event, thus each value change calls this function. */
 function refreshDeleteButton(select) {
   const button = select.parentElement.querySelector(".tile-fx-painter-delete-preset");
-  if (button) button.disabled = !select.value;
+  if (button) button.disabled = !select.value || isDefaultPresetSlug(select.value);
 }
 
 /**
@@ -101,7 +111,7 @@ function refreshDeleteButton(select) {
 async function onDeletePreset(fieldset, select) {
   const effectId = fieldset.dataset.tileFxParams;
   const slug = select.value;
-  if (!slug) return;
+  if (!slug || isDefaultPresetSlug(slug)) return;
   const name = select.selectedOptions[0].text;
   const content = game.i18n.format("TILE_FX_PAINTER.Config.Presets.DeleteContent", {
     name: foundry.utils.escapeHTML(name)
