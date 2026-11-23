@@ -157,6 +157,28 @@ export const EFFECTS = {
       // The brightness of the light around the mask edge.
       rimLight: { default: 1, min: 0, max: 2, step: 0.05, group: "rim" }
     }
+  },
+  fog: {
+    label: "TILE_FX_PAINTER.Config.Shader.Choices.Fog",
+    defaultColor: "#c9d0d6",
+    params: {
+      // The maximum alpha of the thick clouds.
+      fogDensity: { default: 0.7, min: 0, max: 1, step: 0.05, group: "clouds" },
+      // The part of the area with thick clouds. A low value gives gaps.
+      fogCoverage: { default: 0.6, min: 0, max: 1, step: 0.05, group: "clouds" },
+      // The contrast of the small octaves. 0 gives smooth clouds.
+      detailAmount: { default: 1, min: 0, max: 2, step: 0.05, group: "clouds" },
+      // Dark lower sides and light tops of the clouds. 0 gives a flat color.
+      shadeAmount: { default: 0.3, min: 0, max: 1, step: 0.05, group: "clouds" },
+      // The blur radius of the mask, in grid squares at pattern scale 1. 0 uses the painted edge.
+      edgeSoftness: { default: 0.5, min: 0, max: 2, step: 0.05, group: "edge" },
+      // The drift direction in degrees, in the tile frame axes.
+      flowAngle: { default: 0, min: 0, max: 360, step: 5, group: "motion" },
+      // The drift speed, in pattern units each second.
+      flowAmount: { default: 0.1, min: 0, max: 1, step: 0.05, group: "motion" },
+      // The change of the cloud shapes with time. 0 keeps the shapes.
+      swirlAmount: { default: 0.5, min: 0, max: 1, step: 0.05, group: "motion" }
+    }
   }
 };
 

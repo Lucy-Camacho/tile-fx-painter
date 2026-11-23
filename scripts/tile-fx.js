@@ -11,6 +11,7 @@ import { LavaShader } from "./shaders/lava.js";
 import { WaterShader } from "./shaders/water.js";
 import { FrostShader } from "./shaders/frost.js";
 import { AstralVoidShader } from "./shaders/astral-void.js";
+import { FogShader } from "./shaders/fog.js";
 
 /** The shader class of each effect. */
 const SHADERS = {
@@ -20,7 +21,8 @@ const SHADERS = {
   lava: LavaShader,
   water: WaterShader,
   frost: FrostShader,
-  astralVoid: AstralVoidShader
+  astralVoid: AstralVoidShader,
+  fog: FogShader
 };
 
 const meshes = new Map();

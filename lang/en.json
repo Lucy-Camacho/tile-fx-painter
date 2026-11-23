@@ -86,7 +86,8 @@
           "Lava": "Lava",
           "Water": "Water",
           "Frost": "Frost",
-          "AstralVoid": "Astral Void"
+          "AstralVoid": "Astral Void",
+          "Fog": "Fog"
         }
       },
       "Intensity": {
@@ -109,8 +110,10 @@
         "Legend": "{effect} Settings",
         "Reset": "Reset to Defaults",
         "Groups": {
+          "Clouds": "Clouds",
           "Coverage": "Coverage",
           "Crust": "Crust",
+          "Edge": "Edge",
           "Film": "Rainbow Film",
           "Fog": "Fog",
           "Light": "Light",
@@ -373,6 +376,40 @@
         "RimLight": {
           "Label": "Rim Brightness",
           "Hint": "The brightness of the light around the painted area. The value 0 removes the light."
+        }
+      },
+      "Fog": {
+        "FogDensity": {
+          "Label": "Fog Density",
+          "Hint": "The maximum opacity of the thick clouds. The value 0 removes the fog."
+        },
+        "FogCoverage": {
+          "Label": "Fog Coverage",
+          "Hint": "The part of the painted area with thick clouds. A low value gives gaps in the fog."
+        },
+        "DetailAmount": {
+          "Label": "Cloud Detail",
+          "Hint": "The contrast of the small shapes in the clouds. The value 0 gives smooth clouds."
+        },
+        "ShadeAmount": {
+          "Label": "Cloud Shading",
+          "Hint": "Dark lower sides and light tops of the clouds. The value 0 gives a flat color."
+        },
+        "EdgeSoftness": {
+          "Label": "Edge Softness",
+          "Hint": "The width of the soft edge, in grid squares at Pattern Scale 1. The fog can go past the painted area. The value 0 uses the painted edge."
+        },
+        "FlowAngle": {
+          "Label": "Drift Direction",
+          "Hint": "The drift direction in degrees. The direction turns with the tile."
+        },
+        "FlowAmount": {
+          "Label": "Drift Speed",
+          "Hint": "The drift speed, in grid squares each second at Pattern Scale 1. The value 0 stops the drift."
+        },
+        "SwirlAmount": {
+          "Label": "Swirl",
+          "Hint": "The change of the cloud shapes with time. The value 0 keeps the shapes."
         }
       }
     },
