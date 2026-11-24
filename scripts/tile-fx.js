@@ -107,6 +107,8 @@ async function syncTile(tile) {
 
   mesh.setShaderClass(SHADERS[settings.effect]);
   mesh.applySettings(settings);
+  // Each tile redraw makes a new texture and calls the drawTile hook. Thus a texture.src change also comes here.
+  mesh.setImage(tile.texture ?? null);
   mesh.refreshTransform(tile.document);
   mesh.refreshState(tile);
 }
@@ -126,7 +128,10 @@ Hooks.on("drawTile", (tile) => syncTile(tile));
 Hooks.on("refreshTile", (tile, flags) => {
   const mesh = meshes.get(tile.document.id);
   if (!mesh || tile.isPreview) return;
-  if (flags.refreshPosition || flags.refreshRotation || flags.refreshSize) mesh.refreshTransform(tile.document);
+  // v13 sets only refreshMesh for a change of the image fit, scale, anchor, or tint. The image matrix and tint use them.
+  if (flags.refreshPosition || flags.refreshRotation || flags.refreshSize || flags.refreshMesh) {
+    mesh.refreshTransform(tile.document);
+  }
   // v14 sets the tile visibility in refreshVisibility. Foundry v14 sets this flag on a tile only with refreshState, but a later release can change this.
   if (flags.refreshState || flags.refreshVisibility || flags.refreshElevation || flags.refreshMesh) mesh.refreshState(tile);
 });
@@ -140,6 +145,8 @@ function changesBackground(tileDocument) {
 // Foundry does not draw or refresh a tile after a flag change. See Tile#_onUpdate.
 // A change of the tile levels (v14) can change the background image.
 Hooks.on("updateTile", (tileDocument, changed, options) => {
+  // v14 sets no render flag for a change of the image fit.
+  if (changed.texture && tileDocument.rendered) meshes.get(tileDocument.id)?.refreshTransform(tileDocument);
   const flags = changed.flags;
   const changesFlags = !!flags && ((MODULE_ID in flags) || (`-=${MODULE_ID}` in flags));
   if (!changesFlags && !changesBackground(tileDocument)) return;

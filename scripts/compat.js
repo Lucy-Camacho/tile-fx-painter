@@ -185,7 +185,7 @@ export function getBackgroundSource(tileDocument) {
  *   rotation: number, fit: string, scaleX: number, scaleY: number, tint: number[]}|null}
  *   The tint is RGB from 0 to 1. The src can be a video, thus the caller must test it.
  */
-function getTileImageSource(tileDocument) {
+export function getTileImageSource(tileDocument) {
   const { texture } = tileDocument;
   const src = texture?.src;
   if (!src) return null;

@@ -1,4 +1,4 @@
-import { getOcclusion, getTileFrame, isTileVisible } from "./compat.js";
+import { getOcclusion, getTileFrame, getTileImageSource, isTileVisible } from "./compat.js";
 import { getBackgroundScale } from "./background-capture.js";
 
 /**
@@ -57,6 +57,21 @@ export class TileFxMesh extends foundry.canvas.primary.PrimarySpriteMesh {
   #background = null;
 
   /**
+   * The texture of the tile image, or null. The tile owns it, thus the mesh does not destroy it.
+   * Foundry loads it for the tile mesh, thus a video gives its current frame.
+   */
+  imageTexture = null;
+
+  /** The mat3 (column-major) that changes a mask UV to a position in the tile image, from (0, 0) to (1, 1). */
+  imageMatrix = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1]);
+
+  /** True if imageMatrix places the tile image. See hasBaseMatrix. */
+  hasImageMatrix = false;
+
+  /** The tint of the tile image, RGB from 0 to 1. */
+  imageTint = [1, 1, 1];
+
+  /**
    * Set the mask texture, and destroy the old texture if the mesh owns it.
    * @param {string} src  The mask source.
    * @param {PIXI.Texture} texture
@@ -90,6 +105,14 @@ export class TileFxMesh extends foundry.canvas.primary.PrimarySpriteMesh {
   }
 
   /**
+   * Set the texture of the tile image. Call refreshTransform after this, because the image matrix uses it.
+   * @param {PIXI.Texture|null} texture
+   */
+  setImage(texture) {
+    this.imageTexture = texture;
+  }
+
+  /**
    * Fit the mesh to the tile frame, plus the bleed of the shader.
    * The mesh ignores the fit, scale, and mirror of the tile image, because the mask uses the frame.
    * Call this after a change of the shader class or the settings, because the bleed uses them.
@@ -108,16 +131,19 @@ export class TileFxMesh extends foundry.canvas.primary.PrimarySpriteMesh {
     this.paddingY = this.scale.y > 0 ? bleed / this.scale.y : 0;
     this.tileSize.width = width;
     this.tileSize.height = height;
-    this.#refreshMatrices(frame);
+    const image = getTileImageSource(tileDocument);
+    this.imageTint = image?.tint ?? [1, 1, 1];
+    this.#refreshMatrices(frame, image);
   }
 
   /**
    * Use the same math as drawLayer in background-capture.js:
    * scene point = frame center + rotate(rotation) × ((u − 0.5) × width, (v − 0.5) × height).
-   * The background image is a sprite with the transform of getBackgroundSource, as the Foundry background mesh.
+   * Each image is a sprite with the transform of its source, as the Foundry background mesh and tile mesh.
    * @param {ReturnType<import("./compat.js").getTileFrame>} frame
+   * @param {ReturnType<import("./compat.js").getTileImageSource>} image
    */
-  #refreshMatrices({ centerX, centerY, width, height, rotation }) {
+  #refreshMatrices({ centerX, centerY, width, height, rotation }, image) {
     const radians = Math.toRadians(rotation);
     const cos = Math.cos(radians);
     const sin = Math.sin(radians);
@@ -139,14 +165,25 @@ export class TileFxMesh extends foundry.canvas.primary.PrimarySpriteMesh {
     s[6] = (ox - sceneX) / sceneWidth;
     s[7] = (oy - sceneY) / sceneHeight;
 
-    const m = this.baseMatrix;
+    const frameVectors = { ux, uy, vx, vy, ox, oy };
+    this.hasBaseMatrix = TileFxMesh.#writeImageMatrix(this.baseMatrix, this.#background, this.backgroundTexture, frameVectors);
+    this.hasImageMatrix = TileFxMesh.#writeImageMatrix(this.imageMatrix, image, this.imageTexture, frameVectors);
+  }
+
+  /**
+   * Write the matrix that changes a mask UV to a position in an image, from (0, 0) to (1, 1).
+   * @param {Float32Array} m  The mat3 to write. It becomes the identity if the function returns false.
+   * @param {object|null} source  From getBackgroundSource or getTileImageSource.
+   * @param {PIXI.Texture|null} texture  The texture of source.src.
+   * @param {{ux: number, uy: number, vx: number, vy: number, ox: number, oy: number}} frameVectors
+   *   The scene vectors of one unit of u and v, and the scene point of the mask UV (0, 0).
+   * @returns {boolean}  False with no texture, or with an image scale of 0, because Foundry then does not show the image.
+   */
+  static #writeImageMatrix(m, source, texture, { ux, uy, vx, vy, ox, oy }) {
     m.set([1, 0, 0, 0, 1, 0, 0, 0, 1]);
-    this.hasBaseMatrix = false;
-    const source = this.#background;
-    const texture = this.backgroundTexture;
-    if (!source || !texture?.width || !texture.height) return;
+    if (!source || !texture?.width || !texture.height) return false;
     const { scaleX, scaleY } = getBackgroundScale(source, texture.width, texture.height);
-    if (!scaleX || !scaleY) return;
+    if (!scaleX || !scaleY) return false;
     // The inverse of the sprite transform: turn back by the image rotation, then divide by the image size in the scene.
     const imageRadians = Math.toRadians(source.rotation);
     const imageCos = Math.cos(imageRadians);
@@ -161,7 +198,7 @@ export class TileFxMesh extends foundry.canvas.primary.PrimarySpriteMesh {
     m[4] = toImageY(vx, vy);
     m[6] = toImageX(ox - source.x, oy - source.y) + source.anchorX;
     m[7] = toImageY(ox - source.x, oy - source.y) + source.anchorY;
-    this.hasBaseMatrix = true;
+    return true;
   }
 
   /**

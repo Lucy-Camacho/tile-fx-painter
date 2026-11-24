@@ -26,7 +26,12 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
     baseMatrix: [1, 0, 0, 0, 1, 0, 0, 0, 1],
     sceneMatrix: [1, 0, 0, 0, 1, 0, 0, 0, 1],
     baseFrame: [0, 0, 1, 1],
-    hasBase: 0
+    hasBase: 0,
+    imageSampler: null,
+    imageMatrix: [1, 0, 0, 0, 1, 0, 0, 0, 1],
+    imageFrame: [0, 0, 1, 1],
+    imageTint: [1, 1, 1],
+    hasImage: 0
   };
 
   /**
@@ -35,6 +40,7 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
    * - sceneMatrix changes a mask UV to a position in the scene rectangle, from (0, 0) to (1, 1).
    * - baseFrame changes a position in the background image to a UV of the background texture.
    *   It is (x, y, width, height) of the texture frame in UV units.
+   * - imageMatrix and imageFrame are the same for the tile image.
    */
   static FX_COMMON = `
     uniform float intensity;
@@ -48,20 +54,35 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
     uniform mat3 sceneMatrix;
     uniform vec4 baseFrame;
     uniform float hasBase;
+    uniform sampler2D imageSampler;
+    uniform mat3 imageMatrix;
+    uniform vec4 imageFrame;
+    uniform vec3 imageTint;
+    uniform float hasImage;
 
-    // Change a mask UV to a background texture UV.
-    // Returns false outside the background image, or when the tile has no background image.
-    bool baseUv(vec2 maskUv, out vec2 uv) {
-      vec2 imagePos = (baseMatrix * vec3(maskUv, 1.0)).xy;
-      uv = baseFrame.xy + (imagePos * baseFrame.zw);
-      return (hasBase > 0.5) && all(greaterThanEqual(imagePos, vec2(0.0))) && all(lessThanEqual(imagePos, vec2(1.0)));
+    // Change a mask UV to a texture UV of an image. Returns false outside the image, or when the image is not present.
+    bool imageLayerUv(vec2 maskUv, mat3 matrix, vec4 frame, float present, out vec2 uv) {
+      vec2 imagePos = (matrix * vec3(maskUv, 1.0)).xy;
+      uv = frame.xy + (imagePos * frame.zw);
+      return (present > 0.5) && all(greaterThanEqual(imagePos, vec2(0.0))) && all(lessThanEqual(imagePos, vec2(1.0)));
     }
 
-    // The premultiplied background color under a mask UV. It is vec4(0.0) when baseUv returns false.
+    bool baseUv(vec2 maskUv, out vec2 uv) {
+      return imageLayerUv(maskUv, baseMatrix, baseFrame, hasBase, uv);
+    }
+
+    bool imageUv(vec2 maskUv, out vec2 uv) {
+      return imageLayerUv(maskUv, imageMatrix, imageFrame, hasImage, uv);
+    }
+
+    // The premultiplied color under a mask UV: the tinted tile image over the background, as the canvas shows them.
+    // A transparent area of the tile image shows the background. It is vec4(0.0) where the two images are not present.
     vec4 sampleBase(vec2 maskUv) {
       vec2 uv;
-      if ( !baseUv(maskUv, uv) ) return vec4(0.0);
-      return texture(baseSampler, uv);
+      vec4 color = baseUv(maskUv, uv) ? texture(baseSampler, uv) : vec4(0.0);
+      vec4 image = imageUv(maskUv, uv) ? texture(imageSampler, uv) : vec4(0.0);
+      image.rgb *= imageTint;
+      return image + (color * (1.0 - image.a));
     }
 
     // The straight (not premultiplied) color of a premultiplied color. It is black when the alpha is 0.
@@ -287,19 +308,35 @@ export class TileFxShader extends foundry.canvas.rendering.shaders.PrimaryBaseSa
       view[3] = (sceneY - pivot.y) / radius;
     }
 
-    // Check the texture each frame, because the Foundry texture cache can unload it.
-    const texture = mesh.backgroundTexture;
-    const hasBase = mesh.hasBaseMatrix && !!texture?.valid && !!texture.baseTexture && !texture.baseTexture.destroyed
+    uniforms.hasBase = this.#bindImage(mesh.backgroundTexture, mesh.hasBaseMatrix, "baseSampler", "baseFrame");
+    uniforms.hasImage = this.#bindImage(mesh.imageTexture, mesh.hasImageMatrix, "imageSampler", "imageFrame");
+    uniforms.imageMatrix = mesh.imageMatrix;
+    uniforms.imageTint = mesh.imageTint;
+  }
+
+  /**
+   * Set the sampler and the frame UVs of an image texture.
+   * Check the texture each frame: the Foundry texture cache can unload a background, and Tile#_clear destroys
+   * a video texture before the tile redraw.
+   * @param {PIXI.Texture|null} texture
+   * @param {boolean} hasMatrix  True if the mesh matrix places the image.
+   * @param {string} samplerKey  The uniform name of the sampler.
+   * @param {string} frameKey  The uniform name of the frame UVs.
+   * @returns {number}  1 if the shader can sample the image, else 0.
+   */
+  #bindImage(texture, hasMatrix, samplerKey, frameKey) {
+    const uniforms = this.uniforms;
+    const valid = hasMatrix && !!texture?.valid && !!texture.baseTexture && !texture.baseTexture.destroyed
       && (texture !== PIXI.Texture.EMPTY) && (texture !== PIXI.Texture.WHITE);
-    uniforms.hasBase = hasBase ? 1 : 0;
-    uniforms.baseSampler = hasBase ? texture : PIXI.Texture.EMPTY;
-    if ( hasBase ) {
+    uniforms[samplerKey] = valid ? texture : PIXI.Texture.EMPTY;
+    if ( valid ) {
       const { frame, baseTexture } = texture;
-      const frameUvs = uniforms.baseFrame;
+      const frameUvs = uniforms[frameKey];
       frameUvs[0] = frame.x / baseTexture.width;
       frameUvs[1] = frame.y / baseTexture.height;
       frameUvs[2] = frame.width / baseTexture.width;
       frameUvs[3] = frame.height / baseTexture.height;
     }
+    return valid ? 1 : 0;
   }
 }
