@@ -202,6 +202,39 @@ export const DEFAULT_PRESETS = {
       }
     }
   },
+  fog: {
+    morningMist: {
+      intensity: 1,
+      color: "#d4dce3",
+      speed: 0.6,
+      scale: 1.5,
+      params: {
+        fogDensity: 0.5, fogCoverage: 0.75, detailAmount: 0.5, shadeAmount: 0.1, edgeSoftness: 1,
+        flowAngle: 0, flowAmount: 0.05, swirlAmount: 0.3
+      }
+    },
+    // flowAngle 270 is up on the screen, because the tile frame y axis points down.
+    campfireSmoke: {
+      intensity: 1,
+      color: "#8a8784",
+      speed: 1,
+      scale: 0.75,
+      params: {
+        fogDensity: 0.6, fogCoverage: 0.45, detailAmount: 1.4, shadeAmount: 0.3, edgeSoftness: 0.4,
+        flowAngle: 270, flowAmount: 0.3, swirlAmount: 0.8
+      }
+    },
+    billowingSmoke: {
+      intensity: 1,
+      color: "#2e2b29",
+      speed: 1,
+      scale: 1,
+      params: {
+        fogDensity: 0.9, fogCoverage: 0.8, detailAmount: 1.2, shadeAmount: 0.6, edgeSoftness: 0.6,
+        flowAngle: 270, flowAmount: 0.2, swirlAmount: 1
+      }
+    }
+  },
   treeSway: {
     gentleBreeze: {
       intensity: 1,

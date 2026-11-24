@@ -63,6 +63,11 @@
         "NebulaRift": "Nebula Rift",
         "EldritchPortal": "Eldritch Portal"
       },
+      "Fog": {
+        "MorningMist": "Morning Mist",
+        "CampfireSmoke": "Campfire Smoke",
+        "BillowingSmoke": "Billowing Smoke"
+      },
       "TreeSway": {
         "GentleBreeze": "Gentle Breeze",
         "WindyForest": "Windy Forest",
