@@ -12,6 +12,7 @@ import { WaterShader } from "./shaders/water.js";
 import { FrostShader } from "./shaders/frost.js";
 import { AstralVoidShader } from "./shaders/astral-void.js";
 import { FogShader } from "./shaders/fog.js";
+import { TreeSwayShader } from "./shaders/tree-sway.js";
 
 /** The shader class of each effect. */
 const SHADERS = {
@@ -22,7 +23,8 @@ const SHADERS = {
   water: WaterShader,
   frost: FrostShader,
   astralVoid: AstralVoidShader,
-  fog: FogShader
+  fog: FogShader,
+  treeSway: TreeSwayShader
 };
 
 const meshes = new Map();

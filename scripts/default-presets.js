@@ -201,5 +201,37 @@ export const DEFAULT_PRESETS = {
         rimLight: 1.8
       }
     }
+  },
+  treeSway: {
+    gentleBreeze: {
+      intensity: 1,
+      color: "#eef4d0",
+      speed: 1,
+      scale: 1,
+      params: {
+        swayAmount: 0.05, plantSize: 1.75, swayRate: 0.5, leafDetail: 0.6, swayVariation: 1, gustAmount: 0.4, gustSize: 5,
+        flutterAmount: 0.4, sheenAmount: 0.1, flowAngle: 0, flowAmount: 0.7
+      }
+    },
+    windyForest: {
+      intensity: 1,
+      color: "#eef4d0",
+      speed: 1,
+      scale: 1,
+      params: {
+        swayAmount: 0.1, plantSize: 1.75, swayRate: 0.6, leafDetail: 0.6, swayVariation: 1, gustAmount: 0.7, gustSize: 4,
+        flutterAmount: 0.5, sheenAmount: 0.15, flowAngle: 0, flowAmount: 1
+      }
+    },
+    stormWinds: {
+      intensity: 1,
+      color: "#e4ebdc",
+      speed: 1,
+      scale: 1,
+      params: {
+        swayAmount: 0.15, plantSize: 1.75, swayRate: 0.9, leafDetail: 0.5, swayVariation: 1, gustAmount: 0.85, gustSize: 7,
+        flutterAmount: 0.6, sheenAmount: 0.2, flowAngle: 0, flowAmount: 1.3
+      }
+    }
   }
 };

@@ -179,6 +179,35 @@ export const EFFECTS = {
       // The change of the cloud shapes with time. 0 keeps the shapes.
       swirlAmount: { default: 0.5, min: 0, max: 1, step: 0.05, group: "motion" }
     }
+  },
+  treeSway: {
+    label: "TILE_FX_PAINTER.Config.Shader.Choices.TreeSway",
+    // The light of the bent leaves.
+    defaultColor: "#eef4d0",
+    params: {
+      // The maximum lean of a crown top in a full gust, in pattern units. 0 removes the sway.
+      swayAmount: { default: 0.1, min: 0, max: 0.25, step: 0.01, group: "sway" },
+      // The usual width of one crown, in pattern units. Points nearer than this move together.
+      plantSize: { default: 1.75, min: 0.25, max: 4, step: 0.05, group: "sway" },
+      // The spring rate of the trees. Low for large trees, high for small trees and bushes.
+      swayRate: { default: 0.6, min: 0.25, max: 3, step: 0.05, group: "sway" },
+      // The added height of light pixels. 0 bends each crown as one smooth body.
+      leafDetail: { default: 0.6, min: 0, max: 1, step: 0.05, group: "sway" },
+      // The random part of the sway phase. 1: each tree sways alone. 0: the trees sway in waves.
+      swayVariation: { default: 1, min: 0, max: 1, step: 0.05, group: "sway" },
+      // The difference between a gust and calm air. 0 gives a steady wind.
+      gustAmount: { default: 0.7, min: 0, max: 1, step: 0.05, group: "gusts" },
+      // The size of a gust front, in pattern units.
+      gustSize: { default: 4, min: 0.5, max: 10, step: 0.1, group: "gusts" },
+      // The fast small movement and light change of the leaves. 0 removes it.
+      flutterAmount: { default: 0.5, min: 0, max: 1, step: 0.05, group: "foliage" },
+      // The quantity of effect color on the bent crowns. 0 removes it.
+      sheenAmount: { default: 0.15, min: 0, max: 1, step: 0.05, group: "foliage" },
+      // The wind direction in degrees, in the tile frame axes.
+      flowAngle: { default: 0, min: 0, max: 360, step: 5, group: "motion" },
+      // The speed of the gust fronts.
+      flowAmount: { default: 1, min: 0, max: 3, step: 0.05, group: "motion" }
+    }
   }
 };
 

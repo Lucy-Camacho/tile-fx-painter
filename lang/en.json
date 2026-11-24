@@ -62,6 +62,11 @@
         "DeepSpace": "Deep Space",
         "NebulaRift": "Nebula Rift",
         "EldritchPortal": "Eldritch Portal"
+      },
+      "TreeSway": {
+        "GentleBreeze": "Gentle Breeze",
+        "WindyForest": "Windy Forest",
+        "StormWinds": "Storm Winds"
       }
     },
     "Tab": {
@@ -87,7 +92,8 @@
           "Water": "Water",
           "Frost": "Frost",
           "AstralVoid": "Astral Void",
-          "Fog": "Fog"
+          "Fog": "Fog",
+          "TreeSway": "Tree Sway"
         }
       },
       "Intensity": {
@@ -116,6 +122,8 @@
           "Edge": "Edge",
           "Film": "Rainbow Film",
           "Fog": "Fog",
+          "Foliage": "Foliage",
+          "Gusts": "Gusts",
           "Light": "Light",
           "MoltenRock": "Molten Rock",
           "Motion": "Motion",
@@ -125,6 +133,7 @@
           "Shore": "Shore and Depth",
           "Stars": "Stars",
           "Surface": "Surface",
+          "Sway": "Sway",
           "UnderIce": "Under the Ice"
         }
       },
@@ -410,6 +419,52 @@
         "SwirlAmount": {
           "Label": "Swirl",
           "Hint": "The change of the cloud shapes with time. The value 0 keeps the shapes."
+        }
+      },
+      "TreeSway": {
+        "SwayAmount": {
+          "Label": "Sway Distance",
+          "Hint": "The maximum lean of a crown top in a full gust, in grid squares at Pattern Scale 1. The value 0 removes the sway."
+        },
+        "PlantSize": {
+          "Label": "Crown Size",
+          "Hint": "The usual width of one tree crown, in grid squares at Pattern Scale 1. Points nearer than this move together."
+        },
+        "SwayRate": {
+          "Label": "Sway Rate",
+          "Hint": "The spring rate of the trees. Use a low value for large trees and a high value for small trees and bushes."
+        },
+        "LeafDetail": {
+          "Label": "Leaf Detail",
+          "Hint": "Light leaves move more than the dark gaps between them. The value 0 bends each crown as one smooth body."
+        },
+        "SwayVariation": {
+          "Label": "Sway Variation",
+          "Hint": "The random part of the sway. At 1, each tree sways at its own time. At 0, the trees sway in waves that move downwind."
+        },
+        "GustAmount": {
+          "Label": "Gust Strength",
+          "Hint": "The difference between a gust and calm air. The value 0 gives a steady wind, and the trees only sway."
+        },
+        "GustSize": {
+          "Label": "Gust Size",
+          "Hint": "The size of a gust front, in grid squares at Pattern Scale 1."
+        },
+        "FlutterAmount": {
+          "Label": "Leaf Flutter",
+          "Hint": "The fast small movement and light change of the leaves. The value 0 removes it."
+        },
+        "SheenAmount": {
+          "Label": "Sheen",
+          "Hint": "The quantity of effect color on the bent crowns. The value 0 removes it."
+        },
+        "FlowAngle": {
+          "Label": "Wind Direction",
+          "Hint": "The wind direction in degrees. The direction turns with the tile."
+        },
+        "FlowAmount": {
+          "Label": "Gust Speed",
+          "Hint": "The speed of the gust fronts. The value 0 stops the fronts, and the trees continue to sway."
         }
       }
     },
