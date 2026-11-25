@@ -77,6 +77,11 @@
         "Campfire": "Campfire",
         "RoaringBlaze": "Roaring Blaze",
         "Witchfire": "Witchfire"
+      },
+      "Electricity": {
+        "StaticField": "Static Field",
+        "LightningStorm": "Lightning Storm",
+        "ArcaneSurge": "Arcane Surge"
       }
     },
     "Tab": {
@@ -104,7 +109,8 @@
           "AstralVoid": "Astral Void",
           "Fog": "Fog",
           "TreeSway": "Tree Sway",
-          "Fire": "Fire"
+          "Fire": "Fire",
+          "Electricity": "Electricity"
         }
       },
       "Intensity": {
@@ -127,6 +133,7 @@
         "Legend": "{effect} Settings",
         "Reset": "Reset to Defaults",
         "Groups": {
+          "Arcs": "Arcs",
           "Clouds": "Clouds",
           "Coverage": "Coverage",
           "Crust": "Crust",
@@ -524,6 +531,40 @@
         "FlameSpeed": {
           "Label": "Flame Speed",
           "Hint": "The rise speed of the flames in the side view. The value 0 shows the fire from above, as a campfire."
+        }
+      },
+      "Electricity": {
+        "ArcCount": {
+          "Label": "Arc Count",
+          "Hint": "The number of arcs at one time in the painted area. When an arc goes out, a new arc strikes at a different place."
+        },
+        "ArcLength": {
+          "Label": "Arc Length",
+          "Hint": "The mean length of an arc, in grid squares at Pattern Scale 1. An arc starts and stops in the painted area, thus use a low value for a thin area."
+        },
+        "ArcWidth": {
+          "Label": "Arc Width",
+          "Hint": "A multiplier on the width of the arcs and their glow."
+        },
+        "Jaggedness": {
+          "Label": "Jaggedness",
+          "Hint": "The side shift of the arc path. The value 0 gives straight lines."
+        },
+        "BranchAmount": {
+          "Label": "Branches",
+          "Hint": "The chance and the brightness of one branch on an arc. The value 0 removes the branches."
+        },
+        "CrackleAmount": {
+          "Label": "Crackle",
+          "Hint": "The quantity and the brightness of the small sparks that strike in the painted area. The value 0 removes them."
+        },
+        "GlowRadius": {
+          "Label": "Halo Size",
+          "Hint": "The size of the halo past the painted area, in grid squares at Pattern Scale 1. The value 0 removes the halo."
+        },
+        "GlowLight": {
+          "Label": "Halo Brightness",
+          "Hint": "The brightness of the halo. The halo flashes with the arcs."
         }
       }
     },

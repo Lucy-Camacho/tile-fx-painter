@@ -236,6 +236,26 @@ export const EFFECTS = {
       // The rise speed of the side view flames. 0 shows the fire from above, as a campfire.
       flameSpeed: { default: 0, min: 0, max: 3, step: 0.05, group: "motion" }
     }
+  },
+  electricity: {
+    label: "TILE_FX_PAINTER.Config.Shader.Choices.Electricity",
+    defaultColor: "#6cc4ff",
+    params: {
+      // The number of arcs at one time. The max is MAX_ARCS in shaders/electricity.js.
+      arcCount: { default: 3, min: 1, max: 7, step: 1, group: "arcs" },
+      // The mean arc length, in pattern units.
+      arcLength: { default: 1.5, min: 0.3, max: 4, step: 0.1, group: "arcs" },
+      arcWidth: { default: 1, min: 0.25, max: 3, step: 0.05, group: "arcs" },
+      // The side shift of the arc path. 0 gives straight lines.
+      jaggedness: { default: 1, min: 0, max: 2, step: 0.05, group: "arcs" },
+      // The chance and the brightness of one branch on an arc. 0 removes the branches.
+      branchAmount: { default: 0.5, min: 0, max: 1, step: 0.05, group: "arcs" },
+      // The quantity and the brightness of the small sparks in the area. 0 removes them.
+      crackleAmount: { default: 0.3, min: 0, max: 1, step: 0.05, group: "surface" },
+      // The size of the halo past the mask, in pattern units. 0 removes the halo.
+      glowRadius: { default: 0.4, min: 0, max: 2, step: 0.05, group: "light" },
+      glowLight: { default: 1, min: 0, max: 2, step: 0.05, group: "light" }
+    }
   }
 };
 

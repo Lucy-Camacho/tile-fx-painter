@@ -14,6 +14,7 @@ import { AstralVoidShader } from "./shaders/astral-void.js";
 import { FogShader } from "./shaders/fog.js";
 import { TreeSwayShader } from "./shaders/tree-sway.js";
 import { FireShader } from "./shaders/fire.js";
+import { ElectricityShader } from "./shaders/electricity.js";
 
 /** The shader class of each effect. */
 const SHADERS = {
@@ -26,7 +27,8 @@ const SHADERS = {
   astralVoid: AstralVoidShader,
   fog: FogShader,
   treeSway: TreeSwayShader,
-  fire: FireShader
+  fire: FireShader,
+  electricity: ElectricityShader
 };
 
 const meshes = new Map();

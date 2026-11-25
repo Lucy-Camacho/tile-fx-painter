@@ -299,5 +299,37 @@ export const DEFAULT_PRESETS = {
         glowLight: 1.2, flickerAmount: 0.7, flowAngle: 270, flameSpeed: 0.6
       }
     }
+  },
+  electricity: {
+    staticField: {
+      intensity: 1,
+      color: "#8fd8ff",
+      speed: 1,
+      scale: 1,
+      params: {
+        arcCount: 2, arcLength: 0.8, arcWidth: 0.7, jaggedness: 1.2, branchAmount: 0.2, crackleAmount: 0.7, glowRadius: 0.3,
+        glowLight: 0.7
+      }
+    },
+    lightningStorm: {
+      intensity: 1.2,
+      color: "#b8d4ff",
+      speed: 1,
+      scale: 1,
+      params: {
+        arcCount: 6, arcLength: 2.5, arcWidth: 1.5, jaggedness: 1.3, branchAmount: 0.8, crackleAmount: 0.3, glowRadius: 0.8,
+        glowLight: 1.3
+      }
+    },
+    arcaneSurge: {
+      intensity: 1,
+      color: "#b45cff",
+      speed: 0.8,
+      scale: 1,
+      params: {
+        arcCount: 4, arcLength: 1.5, arcWidth: 1.2, jaggedness: 1.6, branchAmount: 0.6, crackleAmount: 0.5, glowRadius: 0.6,
+        glowLight: 1.2
+      }
+    }
   }
 };
