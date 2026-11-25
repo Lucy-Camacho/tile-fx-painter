@@ -72,6 +72,11 @@
         "GentleBreeze": "Gentle Breeze",
         "WindyForest": "Windy Forest",
         "StormWinds": "Storm Winds"
+      },
+      "Fire": {
+        "Campfire": "Campfire",
+        "RoaringBlaze": "Roaring Blaze",
+        "Witchfire": "Witchfire"
       }
     },
     "Tab": {
@@ -98,7 +103,8 @@
           "Frost": "Frost",
           "AstralVoid": "Astral Void",
           "Fog": "Fog",
-          "TreeSway": "Tree Sway"
+          "TreeSway": "Tree Sway",
+          "Fire": "Fire"
         }
       },
       "Intensity": {
@@ -125,7 +131,9 @@
           "Coverage": "Coverage",
           "Crust": "Crust",
           "Edge": "Edge",
+          "Embers": "Coals and Embers",
           "Film": "Rainbow Film",
+          "Flames": "Flames",
           "Fog": "Fog",
           "Foliage": "Foliage",
           "Gusts": "Gusts",
@@ -470,6 +478,52 @@
         "FlowAmount": {
           "Label": "Gust Speed",
           "Hint": "The speed of the gust fronts. The value 0 stops the fronts, and the trees continue to sway."
+        }
+      },
+      "Fire": {
+        "FlameAmount": {
+          "Label": "Flame Amount",
+          "Hint": "The part of the fire area with flames. A low value gives separate tongues with dark gaps."
+        },
+        "FlameLength": {
+          "Label": "Flame Length",
+          "Hint": "In the side view, the distance of the tongues past the painted area. In the view from above, the size of the fire. In grid squares at Pattern Scale 1."
+        },
+        "Turbulence": {
+          "Label": "Turbulence",
+          "Hint": "The force of the air flow that rolls and curls the flames. The value 0 gives smooth flames with no curls."
+        },
+        "CoreHeat": {
+          "Label": "Core Heat",
+          "Hint": "The yellow and white heat at the center of the fire."
+        },
+        "EmberAmount": {
+          "Label": "Coal Bed",
+          "Hint": "The glowing coals and ash below the flames. In the side view, the coals show at the base of the painted area, and the flames start above them. The value 0 removes them."
+        },
+        "SparkAmount": {
+          "Label": "Floating Embers",
+          "Hint": "The quantity of glowing embers that float up from the fire and go out. The value 0 removes them."
+        },
+        "GlowRadius": {
+          "Label": "Light Size",
+          "Hint": "The size of the light past the painted area, in grid squares at Pattern Scale 1. The value 0 removes the light."
+        },
+        "GlowLight": {
+          "Label": "Light Brightness",
+          "Hint": "The brightness of the light past the painted area."
+        },
+        "FlickerAmount": {
+          "Label": "Flicker",
+          "Hint": "The change of the flame size and the light with time. The value 0 gives a steady fire."
+        },
+        "FlowAngle": {
+          "Label": "Flame Direction",
+          "Hint": "The direction of the flames in the side view, in degrees. The value 270 is up. The direction turns with the tile."
+        },
+        "FlameSpeed": {
+          "Label": "Flame Speed",
+          "Hint": "The rise speed of the flames in the side view. The value 0 shows the fire from above, as a campfire."
         }
       }
     },

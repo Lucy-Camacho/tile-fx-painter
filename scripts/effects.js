@@ -208,6 +208,34 @@ export const EFFECTS = {
       // The speed of the gust fronts.
       flowAmount: { default: 1, min: 0, max: 3, step: 0.05, group: "motion" }
     }
+  },
+  fire: {
+    label: "TILE_FX_PAINTER.Config.Shader.Choices.Fire",
+    defaultColor: "#ff6b1a",
+    params: {
+      // The part of the fire area with flames. A low value gives separate tongues.
+      flameAmount: { default: 0.6, min: 0, max: 1, step: 0.05, group: "flames" },
+      // Side view: the reach of the tongues past the mask. View from above: the size of the fire column. In pattern units.
+      flameLength: { default: 1, min: 0.25, max: 3, step: 0.05, group: "flames" },
+      // The force of the curl flow that rolls the flame shapes. 0 gives smooth shapes with no curls.
+      // The shader multiplies it by TURBULENCE_SCALE, because a higher force only distorts the flames.
+      turbulence: { default: 0.5, min: 0, max: 1, step: 0.05, group: "flames" },
+      // The yellow and white heat at the center of the fire.
+      coreHeat: { default: 0.5, min: 0, max: 1, step: 0.05, group: "flames" },
+      // The coal bed below the flames. 0 removes it.
+      emberAmount: { default: 0.6, min: 0, max: 1, step: 0.05, group: "embers" },
+      // The quantity of floating embers. 0 removes them.
+      sparkAmount: { default: 0.4, min: 0, max: 1, step: 0.05, group: "embers" },
+      // The size of the light past the mask, in pattern units. 0 removes the light.
+      glowRadius: { default: 0.8, min: 0, max: 3, step: 0.05, group: "light" },
+      glowLight: { default: 1, min: 0, max: 2, step: 0.05, group: "light" },
+      // The change of the flame size and light with time. 0 gives a steady fire.
+      flickerAmount: { default: 1, min: 0, max: 2, step: 0.05, group: "motion" },
+      // The direction of the side view flames in degrees, in the tile frame axes. 270 is up.
+      flowAngle: { default: 270, min: 0, max: 360, step: 5, group: "motion" },
+      // The rise speed of the side view flames. 0 shows the fire from above, as a campfire.
+      flameSpeed: { default: 0, min: 0, max: 3, step: 0.05, group: "motion" }
+    }
   }
 };
 

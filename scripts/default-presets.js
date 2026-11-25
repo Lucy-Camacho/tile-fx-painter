@@ -266,5 +266,38 @@ export const DEFAULT_PRESETS = {
         flutterAmount: 0.6, sheenAmount: 0.2, flowAngle: 0, flowAmount: 1.3
       }
     }
+  },
+  // flameSpeed 0 shows the fire from above. A higher value gives the side view.
+  fire: {
+    campfire: {
+      intensity: 1,
+      color: "#ff6b1a",
+      speed: 1,
+      scale: 1,
+      params: {
+        flameAmount: 0.55, flameLength: 1, turbulence: 0.5, coreHeat: 0.5, emberAmount: 0.8, sparkAmount: 0.4, glowRadius: 1,
+        glowLight: 1, flickerAmount: 1, flowAngle: 270, flameSpeed: 0
+      }
+    },
+    roaringBlaze: {
+      intensity: 1.2,
+      color: "#ff5a12",
+      speed: 1,
+      scale: 1,
+      params: {
+        flameAmount: 0.75, flameLength: 1.5, turbulence: 0.65, coreHeat: 0.7, emberAmount: 0.4, sparkAmount: 0.7, glowRadius: 1.5,
+        glowLight: 1.3, flickerAmount: 1.2, flowAngle: 270, flameSpeed: 1
+      }
+    },
+    witchfire: {
+      intensity: 1,
+      color: "#3fe08a",
+      speed: 0.8,
+      scale: 1,
+      params: {
+        flameAmount: 0.5, flameLength: 1.2, turbulence: 0.8, coreHeat: 0.4, emberAmount: 0, sparkAmount: 0.5, glowRadius: 1,
+        glowLight: 1.2, flickerAmount: 0.7, flowAngle: 270, flameSpeed: 0.6
+      }
+    }
   }
 };
